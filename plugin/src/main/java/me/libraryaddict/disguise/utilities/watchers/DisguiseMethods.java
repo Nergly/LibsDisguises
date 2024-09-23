@@ -9,8 +9,11 @@ import me.libraryaddict.disguise.disguisetypes.DisguiseType;
 import me.libraryaddict.disguise.disguisetypes.FlagWatcher;
 import me.libraryaddict.disguise.disguisetypes.PlayerDisguise;
 import me.libraryaddict.disguise.disguisetypes.watchers.PlayerWatcher;
+import me.libraryaddict.disguise.utilities.LibsPremium;
+import me.libraryaddict.disguise.utilities.params.ParamInfo;
 import me.libraryaddict.disguise.utilities.params.ParamInfoManager;
 import me.libraryaddict.disguise.utilities.parser.WatcherMethod;
+import me.libraryaddict.disguise.utilities.reflection.NmsVersion;
 import me.libraryaddict.disguise.utilities.reflection.ReflectionManager;
 import me.libraryaddict.disguise.utilities.reflection.WatcherInfo;
 import org.bukkit.boss.BarColor;
@@ -22,20 +25,19 @@ import java.lang.invoke.MethodHandles;
 import java.lang.invoke.MethodType;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
-/**
- * Created by libraryaddict on 13/02/2020.
- */
 public class DisguiseMethods {
     private final HashMap<Class<? extends FlagWatcher>, List<WatcherMethod>> watcherMethods = new HashMap<>();
     private final HashMap<Class<? extends Disguise>, List<WatcherMethod>> disguiseMethods = new HashMap<>();
     @Getter
     private final ArrayList<WatcherMethod> methods = new ArrayList<>();
 
-    public ArrayList<WatcherMethod> getMethods(Class c) {
-        ArrayList<WatcherMethod> methods = new ArrayList<>();
+    public List<WatcherMethod> getMethods(Class c) {
+        List<WatcherMethod> methods = new ArrayList<>();
 
         if (watcherMethods.containsKey(c)) {
             methods.addAll(watcherMethods.get(c));
@@ -49,12 +51,38 @@ public class DisguiseMethods {
     }
 
     public DisguiseMethods() {
+        DisguiseConfig.loadPreConfig();
         loadMethods();
+        validateMethods();
+    }
+
+    private void validateMethods() {
+        for (Map.Entry<Class<? extends FlagWatcher>, List<WatcherMethod>> entry : watcherMethods.entrySet()) {
+            for (WatcherMethod method : entry.getValue()) {
+                // We want to only validate remapped methods
+                if (method.getMappedName().equals(method.getMappedName())) {
+                    continue;
+                }
+
+                for (WatcherMethod method2 : entry.getValue()) {
+                    if (method == method2 || !method.getMappedName().equalsIgnoreCase(method2.getMappedName())) {
+                        continue;
+                    }
+
+                    throw new IllegalArgumentException(
+                        "In " + entry.getKey() + ", " + method.getMappedName() + " wants to overload " + method2.getMappedName() + " but " +
+                            method2.getMappedName() +
+                            " well, exists. Which shouldn't be the case. It should either be unsupported version or unsupported parameter" +
+                            ". Otherwise it shouldn't be trying to overload it");
+                }
+            }
+        }
     }
 
     private void loadMethods() {
-        try (InputStream stream = LibsDisguises.getInstance().getResource("METHOD_MAPPINGS")) {
-            String[] lines = new String(ReflectionManager.readFuzzyFully(stream), StandardCharsets.UTF_8).split("\n");
+        List<String> notedSkippedParamTypes = new ArrayList<>();
+
+        try (InputStream stream = LibsDisguises.getInstance().getResource("METHOD_MAPPINGS.txt")) {
 
             HashMap<String, Class<? extends FlagWatcher>> classes = new HashMap<>();
             classes.put(FlagWatcher.class.getSimpleName(), FlagWatcher.class);
@@ -77,9 +105,10 @@ public class DisguiseMethods {
                 }
             }
 
-            for (String line : lines) {
-                WatcherInfo info = new Gson().fromJson(line, WatcherInfo.class);
+            WatcherInfo[] watcherInfos =
+                new Gson().fromJson(new String(ReflectionManager.readFuzzyFully(stream), StandardCharsets.UTF_8), WatcherInfo[].class);
 
+            for (WatcherInfo info : watcherInfos) {
                 if (!info.isSupported()) {
                     continue;
                 }
@@ -97,20 +126,49 @@ public class DisguiseMethods {
                 Class param = parseType(info.getParam());
                 Class returnType = parseType(info.getReturnType());
 
-                String paramName = info.getParam();
+                Class methodType = param == null || param == Void.TYPE ? returnType : param;
+                ParamInfo paramType = ParamInfoManager.getParamInfo(methodType);
+
+                if (paramType == null) {
+                    String name = methodType.isArray() ? methodType.getComponentType().getName() + "[]" : methodType.getName();
+
+                    if (!notedSkippedParamTypes.contains(name) && !LibsDisguises.getInstance().isJenkins()) {
+                        notedSkippedParamTypes.add(name);
+                        LibsDisguises.getInstance().getLogger()
+                            .info("DEBUG: Skipped method using " + name + ", don't need it in experimental builds");
+                    }
+
+                    continue;
+                }
 
                 MethodType type =
                     param == null || param == Void.TYPE ? MethodType.methodType(returnType) : MethodType.methodType(returnType, param);
 
                 MethodHandle method = MethodHandles.publicLookup().findVirtual(watcher, info.getMethod(), type);
+                boolean[] unusableBy = new boolean[DisguiseType.values().length];
+                boolean[] hiddenFor = new boolean[DisguiseType.values().length];
 
-                WatcherMethod m = new WatcherMethod(watcher, method, info.getMethod(), returnType, param, info.isRandomDefault(),
-                    info.isDeprecated() && info.getAdded() == 0, info.getUnusableBy());
+                for (int unusable : info.getUnusableBy()) {
+                    unusableBy[unusable] = true;
+                }
+
+                for (int unusable : info.getHiddenFor()) {
+                    hiddenFor[unusable] = true;
+                }
+
+                WatcherMethod m =
+                    new WatcherMethod(watcher, method, info.getMappedAs(), info.getMethod(), returnType, param, info.isRandomDefault(),
+                        info.isDeprecated() && info.getAdded() == 0, unusableBy, hiddenFor, info.getDescription(),
+                        info.isNoVisibleDifference());
 
                 methods.add(m);
 
-                if (m.getName().startsWith("get") || m.getName().equals("hasPotionEffect") || param == null || param == Void.TYPE ||
-                    ParamInfoManager.getParamInfo(m) == null) {
+                if (m.getMappedName().startsWith("get") || m.getMappedName().equals("hasPotionEffect") || param == null ||
+                    param == Void.TYPE) {
+                    continue;
+                }
+
+                if (ParamInfoManager.getParamInfo(m) == null) {
                     continue;
                 }
 
@@ -119,10 +177,17 @@ public class DisguiseMethods {
 
             PlayerDisguise disguise = new PlayerDisguise("");
 
+            List<String> extraMethods = new ArrayList<>(
+                Arrays.asList("setSelfDisguiseVisible", "setHideHeldItemFromSelf", "setHideArmorFromSelf", "setHearSelfDisguise",
+                    "setHidePlayer", "setExpires", "setNotifyBar", "setBossBarColor", "setBossBarStyle", "setTallDisguisesVisible",
+                    "setDynamicName", "setSoundGroup", "setDisguiseName", "setDeadmau5Ears"));
+
+            if (NmsVersion.v1_21_R1.isSupported()) {
+                extraMethods.add("setScalePlayerToDisguise");
+            }
+
             // Add these last as it's what we want to present to be called the least
-            for (String methodName : new String[]{"setSelfDisguiseVisible", "setHideHeldItemFromSelf", "setHideArmorFromSelf",
-                "setHearSelfDisguise", "setHidePlayer", "setExpires", "setNotifyBar", "setBossBarColor", "setBossBarStyle",
-                "setTallDisguisesVisible", "setDynamicName", "setSoundGroup", "setDisguiseName", "setDeadmau5Ears"}) {
+            for (String methodName : extraMethods) {
                 try {
                     Class cl = boolean.class;
                     Class disguiseClass = Disguise.class;
@@ -143,6 +208,8 @@ public class DisguiseMethods {
                             break;
                         case "setDisguiseName":
                             randomDefault = true;
+                            cl = String.class;
+                            break;
                         case "setSoundGroup":
                             cl = String.class;
                             break;
@@ -157,7 +224,8 @@ public class DisguiseMethods {
                         try {
                             WatcherMethod method = new WatcherMethod(disguiseClass,
                                 MethodHandles.publicLookup().findVirtual(disguiseClass, methodName, MethodType.methodType(returnType, cl)),
-                                methodName, null, cl, randomDefault, false, new boolean[DisguiseType.values().length]);
+                                methodName, methodName, null, cl, randomDefault, false, new boolean[DisguiseType.values().length],
+                                new boolean[DisguiseType.values().length], null, false);
 
                             methods.add(method);
 
@@ -165,10 +233,16 @@ public class DisguiseMethods {
                                 (a) -> new ArrayList<>()).add(method);
 
                             String getName = (cl == boolean.class ? "is" : "get") + methodName.substring(3);
+                            boolean[] hiddenFor = new boolean[DisguiseType.values().length];
+
+                            // No one really cares about it but don't let players see it if they don't have premium
+                            if (methodName.equals("setScalePlayerToDisguise") && !LibsPremium.isPremium()) {
+                                Arrays.fill(hiddenFor, true);
+                            }
 
                             WatcherMethod getMethod = new WatcherMethod(disguiseClass,
-                                MethodHandles.publicLookup().findVirtual(disguiseClass, getName, MethodType.methodType(cl)), getName, cl,
-                                null, randomDefault, false, new boolean[DisguiseType.values().length]);
+                                MethodHandles.publicLookup().findVirtual(disguiseClass, getName, MethodType.methodType(cl)), getName,
+                                getName, cl, null, randomDefault, false, new boolean[DisguiseType.values().length], hiddenFor, null, false);
 
                             methods.add(getMethod);
                             break;

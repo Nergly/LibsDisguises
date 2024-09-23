@@ -8,9 +8,6 @@ import org.bukkit.entity.EntityType;
 import java.util.Locale;
 import java.util.Objects;
 
-/**
- * Created by libraryaddict on 5/10/2018.
- */
 public class DisguisePerm {
     private final DisguiseType disguiseType;
     private String permName;
@@ -20,14 +17,14 @@ public class DisguisePerm {
 
     public DisguisePerm(DisguiseType disguiseType) {
         this.disguiseType = disguiseType;
-        regexedName = toReadable().replaceAll("[ |_]", "").toLowerCase(Locale.ROOT);
+        regexedName = toReadable().replaceAll("[ |_]", "").toLowerCase(Locale.ENGLISH);
     }
 
     public DisguisePerm(DisguiseType disguiseType, String disguisePerm) {
         this.disguiseType = disguiseType;
         permName = disguisePerm;
         customDisguise = true;
-        regexedName = toReadable().replaceAll("[ |_]", "").toLowerCase(Locale.ROOT);
+        regexedName = toReadable().replaceAll("[ |_]", "").toLowerCase(Locale.ENGLISH);
     }
 
     public boolean isCustomDisguise() {

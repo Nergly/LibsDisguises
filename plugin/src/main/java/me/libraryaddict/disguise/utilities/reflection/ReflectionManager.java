@@ -1,34 +1,36 @@
 package me.libraryaddict.disguise.utilities.reflection;
 
-import com.comphenix.protocol.PacketType;
-import com.comphenix.protocol.events.PacketContainer;
-import com.comphenix.protocol.wrappers.BlockPosition;
-import com.comphenix.protocol.wrappers.EnumWrappers;
-import com.comphenix.protocol.wrappers.EnumWrappers.Direction;
-import com.comphenix.protocol.wrappers.PlayerInfoData;
-import com.comphenix.protocol.wrappers.Vector3F;
-import com.comphenix.protocol.wrappers.WrappedBlockData;
-import com.comphenix.protocol.wrappers.WrappedChatComponent;
-import com.comphenix.protocol.wrappers.WrappedDataValue;
-import com.comphenix.protocol.wrappers.WrappedDataWatcher;
-import com.comphenix.protocol.wrappers.WrappedDataWatcher.WrappedDataWatcherObject;
-import com.comphenix.protocol.wrappers.WrappedGameProfile;
-import com.comphenix.protocol.wrappers.WrappedParticle;
-import com.comphenix.protocol.wrappers.WrappedWatchableObject;
-import com.comphenix.protocol.wrappers.nbt.NbtWrapper;
+import com.github.retrooper.packetevents.netty.buffer.ByteBufHelper;
+import com.github.retrooper.packetevents.protocol.entity.armadillo.ArmadilloState;
+import com.github.retrooper.packetevents.protocol.entity.data.EntityData;
+import com.github.retrooper.packetevents.protocol.entity.data.EntityDataType;
+import com.github.retrooper.packetevents.protocol.entity.data.EntityDataTypes;
+import com.github.retrooper.packetevents.protocol.entity.pose.EntityPose;
+import com.github.retrooper.packetevents.protocol.entity.sniffer.SnifferState;
+import com.github.retrooper.packetevents.protocol.player.TextureProperty;
+import com.github.retrooper.packetevents.protocol.player.UserProfile;
+import com.github.retrooper.packetevents.protocol.sound.SoundCategory;
+import com.github.retrooper.packetevents.protocol.world.BlockFace;
+import com.github.retrooper.packetevents.protocol.world.states.WrappedBlockState;
+import com.github.retrooper.packetevents.util.Vector3f;
+import com.github.retrooper.packetevents.wrapper.PacketWrapper;
+import com.github.retrooper.packetevents.wrapper.play.server.WrapperPlayServerEntityMetadata;
 import com.mojang.authlib.GameProfile;
 import com.mojang.authlib.minecraft.MinecraftSessionService;
+import com.mojang.authlib.properties.Property;
 import com.mojang.authlib.yggdrasil.ProfileResult;
+import io.github.retrooper.packetevents.util.SpigotReflectionUtil;
+import io.netty.buffer.ByteBuf;
+import io.netty.buffer.PooledByteBufAllocator;
 import lombok.Getter;
 import lombok.SneakyThrows;
 import me.libraryaddict.disguise.DisguiseConfig;
 import me.libraryaddict.disguise.LibsDisguises;
+import me.libraryaddict.disguise.disguisetypes.AnimalColor;
 import me.libraryaddict.disguise.disguisetypes.DisguiseType;
-import me.libraryaddict.disguise.disguisetypes.EntityPose;
 import me.libraryaddict.disguise.disguisetypes.FlagWatcher;
 import me.libraryaddict.disguise.disguisetypes.MetaIndex;
-import me.libraryaddict.disguise.disguisetypes.PlayerDisguise;
-import me.libraryaddict.disguise.disguisetypes.VillagerData;
+import me.libraryaddict.disguise.disguisetypes.RabbitType;
 import me.libraryaddict.disguise.disguisetypes.watchers.AgeableWatcher;
 import me.libraryaddict.disguise.disguisetypes.watchers.ArrowWatcher;
 import me.libraryaddict.disguise.disguisetypes.watchers.FishWatcher;
@@ -57,11 +59,13 @@ import org.apache.commons.lang.ArrayUtils;
 import org.apache.commons.lang.StringUtils;
 import org.bukkit.Art;
 import org.bukkit.Bukkit;
-import org.bukkit.GameMode;
+import org.bukkit.Color;
+import org.bukkit.Keyed;
 import org.bukkit.Location;
 import org.bukkit.Material;
 import org.bukkit.NamespacedKey;
 import org.bukkit.Sound;
+import org.bukkit.TreeSpecies;
 import org.bukkit.World;
 import org.bukkit.block.data.BlockData;
 import org.bukkit.command.Command;
@@ -71,30 +75,36 @@ import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.entity.Ageable;
 import org.bukkit.entity.Ambient;
 import org.bukkit.entity.ArmorStand;
+import org.bukkit.entity.Axolotl;
+import org.bukkit.entity.Boat;
 import org.bukkit.entity.Cat;
 import org.bukkit.entity.Creature;
 import org.bukkit.entity.Damageable;
 import org.bukkit.entity.Entity;
 import org.bukkit.entity.EntityType;
 import org.bukkit.entity.Fish;
+import org.bukkit.entity.Fox;
 import org.bukkit.entity.Frog;
+import org.bukkit.entity.ItemDisplay;
 import org.bukkit.entity.LivingEntity;
+import org.bukkit.entity.Llama;
 import org.bukkit.entity.Monster;
+import org.bukkit.entity.Ocelot;
+import org.bukkit.entity.Panda;
+import org.bukkit.entity.Parrot;
 import org.bukkit.entity.Player;
+import org.bukkit.entity.Rabbit;
 import org.bukkit.entity.Tameable;
-import org.bukkit.entity.Villager;
+import org.bukkit.entity.Wolf;
 import org.bukkit.entity.Zombie;
-import org.bukkit.inventory.EquipmentSlot;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
 import org.bukkit.plugin.SimplePluginManager;
-import org.bukkit.potion.PotionEffect;
+import org.bukkit.profile.PlayerProfile;
 import org.bukkit.scheduler.BukkitRunnable;
 import org.bukkit.scoreboard.Objective;
 import org.bukkit.scoreboard.Score;
 import org.bukkit.scoreboard.Scoreboard;
-import org.bukkit.util.EulerAngle;
-import org.bukkit.util.Vector;
 
 import java.io.BufferedReader;
 import java.io.ByteArrayOutputStream;
@@ -103,16 +113,18 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.lang.reflect.AccessibleObject;
+import java.lang.reflect.Array;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Field;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
+import java.lang.reflect.ParameterizedType;
+import java.lang.reflect.Type;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
-import java.util.Collections;
+import java.util.Collection;
 import java.util.Enumeration;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
@@ -128,10 +140,8 @@ import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 public class ReflectionManager {
-    private static final HashMap<String, Enum> soundCategories = new HashMap<>();
     private static String craftbukkitVersion;
     private static Method itemAsCraftCopyMethod;
-    private static Method itemAsNmsCopyMethod;
     private static Method damageAndIdleSoundMethod;
     private static Constructor<?> boundingBoxConstructor;
     private static Method setBoundingBoxMethod;
@@ -149,42 +159,19 @@ public class ReflectionManager {
     private static Field entitiesField;
     private static NmsVersion version;
     private static Method itemAsBukkitMethod;
-    private static Method soundEffectMethod;
     private static Method getServerMethod;
-    private static Method getEnumArtMethod;
-    private static Constructor blockPositionConstructor;
-    private static Method enumDirectionMethod;
-    private static Enum[] enumPlayerInfoAction;
-    private static Constructor chatComponentConstructor;
-    private static Constructor playerInfoConstructor;
-    private static Enum[] enumGamemode;
     private static Method getNmsEntityMethod;
-    private static Enum[] enumItemSlots;
     private static Method soundGetMethod;
     private static Method soundEffectGetMethod;
     private static Field soundEffectGetKey;
-    private static Constructor vector3FConstructor;
-    private static Method enumDirectionFrom;
-    private static Constructor villagerDataConstructor;
-    private static Method bukkitKeyToNms;
-    private static Method registryBlocksGetMethod;
-    private static Object villagerTypeRegistry;
-    private static Object villagerProfessionRegistry;
-    private static Constructor dataWatcherItemConstructor;
-    private static Constructor vec3DConstructor;
     private static Method entityTypesAMethod;
-    private static Class entityPoseClass;
     private static Method craftBlockDataGetState;
-    private static Method getOldItemAsBlock;
     private static Method magicGetBlock;
     private static Method magicGetMaterial;
-    private static Method getNmsItem;
     private static Method getBlockData;
     private static Method getBlockDataAsId;
     private static Method getNmsWorld;
     private static Method deserializedItemMeta;
-    private static Method mobEffectList;
-    private static Constructor mobEffectConstructor;
     private static Method boundingBoxMethod;
     private static Method bukkitEntityMethod;
     private static Method connectionEntityMethod;
@@ -204,29 +191,37 @@ public class ReflectionManager {
     private static Method fillProfileProperties;
     private static MinecraftSessionService sessionService;
     private static String minecraftVersion;
+    private static Method getGameProfile;
+    private static Method propertyName, propertyValue, propertySignature;
+    private static Method getDatawatcher, datawatcherSerialize;
+    private static Field datawatcherData;
 
     public static void init() {
         try {
-            // Load first because its necessary for 1.18+
-            if (NmsVersion.v1_14.isSupported()) {
-                entityPoseClass = getNmsClass("EntityPose");
-            }
-
             nmsReflection = getReflectionManager(getVersion());
 
-            trackedPlayers = ReflectionManager.getNmsField("EntityTrackerEntry", "trackedPlayers");
+            getGameProfile = getCraftMethod("CraftPlayer", "getProfile");
+            trackedPlayers = getNmsField("EntityTrackerEntry", "trackedPlayers");
 
-            if (DisguiseUtilities.isRunningPaper() && !NmsVersion.v1_17.isSupported()) {
-                trackedPlayersMap = ReflectionManager.getNmsField("EntityTrackerEntry", "trackedPlayerMap");
+            // In 1.12 to 1.13, it's all in EntityTrackerEntry
+            // In 1.14+, we have it in EntityTracker in PlayerChunkMap
+            if (NmsVersion.v1_14.isSupported()) {
+                clearEntityTracker = getNmsMethod("PlayerChunkMap$EntityTracker", NmsVersion.v1_18.isSupported() ? "a" : "clear",
+                    getNmsClass("EntityPlayer"));
+                addEntityTracker = getNmsMethod("PlayerChunkMap$EntityTracker", NmsVersion.v1_18.isSupported() ? "b" : "updatePlayer",
+                    getNmsClass("EntityPlayer"));
+            } else {
+                clearEntityTracker = getNmsMethod("EntityTrackerEntry", "clear", getNmsClass("EntityPlayer"));
+                addEntityTracker = getNmsMethod("EntityTrackerEntry", "updatePlayer", getNmsClass("EntityPlayer"));
             }
 
-            clearEntityTracker = ReflectionManager.getNmsMethod("EntityTrackerEntry", NmsVersion.v1_14.isSupported() ? "a" : "clear",
-                ReflectionManager.getNmsClass("EntityPlayer"));
-            addEntityTracker = ReflectionManager.getNmsMethod("EntityTrackerEntry", NmsVersion.v1_14.isSupported() ? "b" : "updatePlayer",
-                ReflectionManager.getNmsClass("EntityPlayer"));
-            trackerIsMoving = ReflectionManager.getNmsField("EntityTrackerEntry", NmsVersion.v1_20_R2.isSupported() ? "i" :
+            trackerIsMoving = getNmsField("EntityTrackerEntry", NmsVersion.v1_20_R2.isSupported() ? "i" :
                 NmsVersion.v1_19_R1.isSupported() ? "p" :
                     NmsVersion.v1_17.isSupported() ? "r" : NmsVersion.v1_14.isSupported() ? "q" : "isMoving");
+
+            if (DisguiseUtilities.isRunningPaper() && !NmsVersion.v1_17.isSupported()) {
+                trackedPlayersMap = getNmsField("EntityTrackerEntry", "trackedPlayerMap");
+            }
 
             if (nmsReflection != null) {
                 sessionService = nmsReflection.getMinecraftSessionService();
@@ -249,6 +244,12 @@ public class ReflectionManager {
                 fillProfileProperties = sessionService.getClass().getMethod("fillProfileProperties", GameProfile.class, boolean.class);
             } catch (Exception ignored) {
             }
+            try {
+                propertyName = Property.class.getMethod("getName");
+                propertyValue = Property.class.getMethod("getValue");
+                propertySignature = Property.class.getMethod("getSignature");
+            } catch (Exception ignored) {
+            }
 
             if (nmsReflection != null) {
                 return;
@@ -261,30 +262,14 @@ public class ReflectionManager {
 
             entityCountField = getNmsField("Entity", "entityCount");
 
-            mobEffectConstructor =
-                getNmsConstructor("MobEffect", getNmsClass("MobEffectList"), Integer.TYPE, Integer.TYPE, Boolean.TYPE, Boolean.TYPE);
-            mobEffectList = getNmsMethod("MobEffectList", "fromId", Integer.TYPE);
             boundingBoxMethod = getNmsMethod("Entity", "getBoundingBox");
             bukkitEntityMethod = getNmsMethod("Entity", "getBukkitEntity");
 
             Class<?> craftItemClass = getCraftClass("CraftItemStack");
             itemAsCraftCopyMethod = getCraftMethod(craftItemClass, "asCraftCopy", ItemStack.class);
-            itemAsNmsCopyMethod = getCraftMethod(craftItemClass, "asNMSCopy", ItemStack.class);
             itemAsBukkitMethod = getCraftMethod(craftItemClass, "asBukkitCopy", getNmsClass("ItemStack"));
 
-            getEnumArtMethod = getCraftMethod("CraftArt", "BukkitToNotch", Art.class);
-            blockPositionConstructor = getNmsConstructor("BlockPosition", int.class, int.class, int.class);
-            enumDirectionMethod = getNmsMethod("EnumDirection", "fromType2", int.class);
-            enumPlayerInfoAction = (Enum[]) getNmsClass("PacketPlayOutPlayerInfo$EnumPlayerInfoAction").getEnumConstants();
-            chatComponentConstructor = getNmsConstructor("ChatComponentText", String.class);
-
-            playerInfoConstructor =
-                getNmsConstructor("PacketPlayOutPlayerInfo$PlayerInfoData", getNmsClass("PacketPlayOutPlayerInfo"), GameProfile.class,
-                    int.class, getNmsClass("EnumGamemode"), getNmsClass("IChatBaseComponent"));
-
-            enumGamemode = (Enum[]) getNmsClass("EnumGamemode").getEnumConstants();
             getNmsEntityMethod = getCraftMethod("CraftEntity", "getHandle");
-            enumItemSlots = (Enum[]) getNmsClass("EnumItemSlot").getEnumConstants();
 
             Class craftSound = getCraftClass("CraftSound");
 
@@ -295,10 +280,6 @@ public class ReflectionManager {
                 soundEffectGetKey = getNmsField("SoundEffect", "b");
             }
 
-            soundEffectMethod = getCraftMethod("CraftSound", "getSoundEffect", String.class);
-
-            vector3FConstructor = getNmsConstructor("Vector3f", float.class, float.class, float.class);
-            enumDirectionFrom = getNmsMethod("EnumDirection", "fromType1", int.class);
             getBlockData = getNmsMethod(getNmsClass("Block"), "getBlockData");
 
             if (NmsVersion.v1_13.isSupported()) {
@@ -306,25 +287,8 @@ public class ReflectionManager {
                 magicGetBlock = getCraftMethod("CraftMagicNumbers", "getBlock", Material.class);
                 magicGetMaterial = getCraftMethod("CraftMagicNumbers", "getMaterial", getNmsClass("Block"));
                 entityTypesAMethod = getNmsMethod("EntityTypes", "a", String.class);
-
-                if (NmsVersion.v1_14.isSupported()) {
-                    registryBlocksGetMethod = getNmsMethod("RegistryBlocks", "get", getNmsClass("MinecraftKey"));
-                    villagerDataConstructor =
-                        getNmsConstructor("VillagerData", getNmsClass("VillagerType"), getNmsClass("VillagerProfession"), int.class);
-
-                    villagerProfessionRegistry = getNmsField("IRegistry", "VILLAGER_PROFESSION").get(null);
-                    villagerTypeRegistry = getNmsField("IRegistry", "VILLAGER_TYPE").get(null);
-
-                } else {
-                    registryBlocksGetMethod = getNmsMethod("RegistryBlocks", "getOrDefault", getNmsClass("MinecraftKey"));
-                }
             }
 
-            bukkitKeyToNms = getCraftMethod("CraftNamespacedKey", "toMinecraft", NamespacedKey.class);
-            dataWatcherItemConstructor = getNmsConstructor("DataWatcher$Item", getNmsClass("DataWatcherObject"), Object.class);
-            vec3DConstructor = getNmsConstructor("Vec3D", double.class, double.class, double.class);
-            getOldItemAsBlock = getNmsMethod(getNmsClass("Block"), "asBlock", getNmsClass("Item"));
-            getNmsItem = getNmsMethod("ItemStack", "getItem");
             getBlockDataAsId = getNmsMethod("Block", "getCombinedId", getNmsClass("IBlockData"));
 
             getNmsWorld = getCraftMethod("CraftWorld", "getHandle");
@@ -351,12 +315,6 @@ public class ReflectionManager {
 
                 genericDamage = obj;
                 break;
-            }
-
-            Method soundCategoryMethod = getNmsMethod("SoundCategory", "a");
-
-            for (Enum anEnum : (Enum[]) getNmsClass("SoundCategory").getEnumConstants()) {
-                soundCategories.put((String) soundCategoryMethod.invoke(anEnum), anEnum);
             }
         } catch (Exception e) {
             e.printStackTrace();
@@ -409,8 +367,56 @@ public class ReflectionManager {
         } else {
             trackerField = getNmsField("WorldServer", "tracker");
             entitiesField = getNmsField("EntityTracker", "trackedEntities");
+
             ihmGet = getNmsMethod("IntHashMap", "get", int.class);
         }
+
+        Class dataClass = getNmsClass("DataWatcher");
+
+        // Get the method to fetch datawatcher
+        for (Method method : getNmsClass("Entity").getMethods()) {
+            if (method.getParameterCount() != 0 || !method.getReturnType().isAssignableFrom(dataClass)) {
+                continue;
+            }
+
+            getDatawatcher = method;
+            break;
+        }
+
+        for (Field field : dataClass.getDeclaredFields()) {
+            if (Modifier.isStatic(field.getModifiers()) || !Map.class.isAssignableFrom(field.getType())) {
+                continue;
+            }
+
+            datawatcherData = field;
+            datawatcherData.setAccessible(true);
+            break;
+        }
+
+        for (Method method : dataClass.getMethods()) {
+            Class<?> returnType = method.getReturnType();
+
+            if (!Modifier.isPublic(method.getModifiers())) {
+                continue;
+            }
+
+            // DataWatcher.serialize(List<DataObject>, packetSerializer);
+            if (Modifier.isStatic(method.getModifiers()) && method.getParameterCount() == 2) {
+                Class<?>[] params = method.getParameterTypes();
+
+                if (params[0].isAssignableFrom(List.class)) {
+                    datawatcherSerialize = method;
+                }
+            }
+        }
+    }
+
+    public static long getGameTime(Entity entity) {
+        if (entity == null || entity.getWorld() == null || !NmsVersion.v1_19_R3.isSupported()) {
+            return 0L;
+        }
+
+        return entity.getWorld().getGameTime();
     }
 
     public static boolean hasInvul(Entity entity) {
@@ -418,7 +424,7 @@ public class ReflectionManager {
             return nmsReflection.hasInvul(entity);
         }
 
-        Object nmsEntity = ReflectionManager.getNmsEntity(entity);
+        Object nmsEntity = getNmsEntity(entity);
 
         try {
             if (entity instanceof LivingEntity) {
@@ -502,26 +508,15 @@ public class ReflectionManager {
         return null;
     }
 
-    public static int getJarFileCount(File file, String... ignoredDirectories) throws IOException {
+    public static int getJarFileCount(File file) throws IOException {
         try (JarFile jar = new JarFile(file)) {
             int count = 0;
 
             Enumeration<JarEntry> entry = jar.entries();
 
-            loop:
             while (entry.hasMoreElements()) {
-                JarEntry element = entry.nextElement();
-
-                if (element.isDirectory()) {
+                if (entry.nextElement().isDirectory()) {
                     continue;
-                }
-
-                for (String ignored : ignoredDirectories) {
-                    if (!element.getName().startsWith(ignored)) {
-                        continue;
-                    }
-
-                    continue loop;
                 }
 
                 count++;
@@ -546,7 +541,7 @@ public class ReflectionManager {
         List<File> files = new ArrayList<>();
 
         for (File file : LibsDisguises.getInstance().getDataFolder().getAbsoluteFile().getParentFile().listFiles()) {
-            if (!file.isFile() || !file.getName().toLowerCase().endsWith(".jar")) {
+            if (!file.isFile() || !file.getName().toLowerCase(Locale.ENGLISH).endsWith(".jar")) {
                 continue;
             }
 
@@ -632,26 +627,12 @@ public class ReflectionManager {
         return -1;
     }
 
-    public static PacketContainer getMetadataPacket(int entityId, List<WatcherValue> values) {
-        Object[] params;
+    public static WrapperPlayServerEntityMetadata getMetadataPacket(int entityId, List<WatcherValue> values) {
+        List<EntityData> entityData = new ArrayList<>();
 
-        PacketContainer metaPacket = new PacketContainer(PacketType.Play.Server.ENTITY_METADATA);
+        values.forEach(v -> entityData.add(v.getDataValue()));
 
-        metaPacket.getIntegers().write(0, entityId);
-
-        if (NmsVersion.v1_19_R2.isSupported()) {
-            List<WrappedDataValue> dataValues = new ArrayList<>();
-            values.forEach(v -> dataValues.add(v.getDataValue()));
-
-            metaPacket.getDataValueCollectionModifier().write(0, dataValues);
-        } else {
-            List<WrappedWatchableObject> dataValues = new ArrayList<>();
-            values.forEach(v -> dataValues.add(v.getWatchableObject()));
-
-            metaPacket.getWatchableCollectionModifier().write(0, dataValues);
-        }
-
-        return metaPacket;
+        return new WrapperPlayServerEntityMetadata(entityId, entityData);
     }
 
     public static Object getPlayerConnectionOrPlayer(Player player) {
@@ -681,14 +662,14 @@ public class ReflectionManager {
 
             if (entityName.equals("Player")) {
                 Object minecraftServer = getNmsMethod("MinecraftServer", "getServer").invoke(null);
-                WrappedGameProfile gameProfile = getGameProfile(new UUID(0, 0), "Steve");
+                GameProfile profile = new GameProfile(new UUID(0, 0), "Steve");
 
                 Object playerinteractmanager = getNmsClass("PlayerInteractManager").getDeclaredConstructor(
                     getNmsClass(NmsVersion.v1_14.isSupported() ? "WorldServer" : "World")).newInstance(world);
 
-                entityObject = entityClass.getDeclaredConstructor(getNmsClass("MinecraftServer"), getNmsClass("WorldServer"),
-                        gameProfile.getHandleType(), playerinteractmanager.getClass())
-                    .newInstance(minecraftServer, world, gameProfile.getHandle(), playerinteractmanager);
+                entityObject =
+                    entityClass.getDeclaredConstructor(getNmsClass("MinecraftServer"), getNmsClass("WorldServer"), profile.getClass(),
+                        playerinteractmanager.getClass()).newInstance(minecraftServer, world, profile, playerinteractmanager);
 
             } else if (entityName.equals("EnderPearl")) {
                 entityObject = entityClass.getDeclaredConstructor(getNmsClass("World"), getNmsClass("EntityLiving"))
@@ -704,7 +685,8 @@ public class ReflectionManager {
                 }
             } else if (!NmsVersion.v1_14.isSupported() && entityName.equals("Potion")) {
                 entityObject = entityClass.getDeclaredConstructor(getNmsClass("World"), Double.TYPE, Double.TYPE, Double.TYPE,
-                    getNmsClass("ItemStack")).newInstance(world, 0d, 0d, 0d, getNmsItem(new ItemStack(Material.SPLASH_POTION)));
+                        getNmsClass("ItemStack"))
+                    .newInstance(world, 0d, 0d, 0d, SpigotReflectionUtil.toNMSItemStack(new ItemStack(Material.SPLASH_POTION)));
             } else {
                 if (NmsVersion.v1_14.isSupported()) {
                     entityObject = entityClass.getDeclaredConstructor(getNmsClass("EntityTypes"), getNmsClass("World"))
@@ -720,40 +702,7 @@ public class ReflectionManager {
 
             return entityObject;
         } catch (Exception e) {
-            DisguiseUtilities.getLogger().warning("Error while attempting to create entity instance for " + disguiseType.name());
-            e.printStackTrace();
-        }
-
-        return null;
-    }
-
-    public static Object getMobEffectList(int id) {
-        if (nmsReflection != null) {
-            return nmsReflection.getMobEffectList(id);
-        }
-
-        try {
-            return mobEffectList.invoke(null, id);
-        } catch (IllegalAccessException | InvocationTargetException e) {
-            e.printStackTrace();
-        }
-
-        return null;
-    }
-
-    public static Object createMobEffect(PotionEffect effect) {
-        return createMobEffect(effect.getType().getId(), effect.getDuration(), effect.getAmplifier(), effect.isAmbient(),
-            effect.hasParticles());
-    }
-
-    public static Object createMobEffect(int id, int duration, int amplification, boolean ambient, boolean particles) {
-        if (nmsReflection != null) {
-            return nmsReflection.createMobEffect(id, duration, amplification, ambient, particles);
-        }
-
-        try {
-            return mobEffectConstructor.newInstance(getMobEffectList(id), duration, amplification, ambient, particles);
-        } catch (Exception e) {
+            LibsDisguises.getInstance().getLogger().warning("Error while attempting to create entity instance for " + disguiseType.name());
             e.printStackTrace();
         }
 
@@ -855,6 +804,10 @@ public class ReflectionManager {
         return null;
     }
 
+    public static boolean isCraftItem(ItemStack bukkitItem) {
+        return bukkitItem.getClass().getName().contains(".craftbukkit.");
+    }
+
     public static ItemStack getCraftItem(ItemStack bukkitItem) {
         if (nmsReflection != null) {
             return nmsReflection.getCraftItem(bukkitItem);
@@ -871,7 +824,11 @@ public class ReflectionManager {
 
     public static NmsVersion getVersion() {
         if (craftbukkitVersion == null) {
-            getCraftBukkitPackage();
+            if (Bukkit.getServer() == null) {
+                version = NmsVersion.values()[NmsVersion.values().length - 1];
+            } else {
+                getCraftBukkitPackage();
+            }
         }
 
         return version;
@@ -894,8 +851,11 @@ public class ReflectionManager {
 
     @Deprecated
     public static String getNmsPackage() {
-        String cbPackage = craftbukkitVersion;
-        String[] spl = cbPackage.split("\\.");
+        if (craftbukkitVersion == null) {
+            getCraftBukkitPackage();
+        }
+
+        String[] spl = craftbukkitVersion.split("\\.");
 
         if (spl.length != 4) {
             return "";
@@ -972,18 +932,20 @@ public class ReflectionManager {
         return getCraftConstructor(getCraftClass(className), parameters);
     }
 
-    public static Object getCraftSound(Sound sound) {
+    public static Object getEntityTracker(Entity target) throws Exception {
         if (nmsReflection != null) {
-            return nmsReflection.getCraftSound(sound);
+            return nmsReflection.getEntityTracker(target);
+        } else if (!NmsVersion.v1_14.isSupported()) {
+            return getEntityTrackerEntry(target);
         }
 
-        try {
-            return soundEffectMethod.invoke(null, getSoundString(sound));
-        } catch (Exception ex) {
-            ex.printStackTrace();
-        }
+        Object world = getWorldServer(target.getWorld());
 
-        return null;
+        Object chunkProvider = chunkProviderField.get(world);
+        Object chunkMap = chunkMapField.get(chunkProvider);
+        Map trackedEntities = (Map) trackedEntitiesField.get(chunkMap);
+
+        return trackedEntities.get(target.getEntityId());
     }
 
     public static Object getEntityTrackerEntry(Entity target) throws Exception {
@@ -1026,143 +988,98 @@ public class ReflectionManager {
         return null;
     }
 
-    public static String getEnumArt(Art art) {
-        if (nmsReflection != null) {
-            return nmsReflection.getEnumArt(art);
+    public static GameProfile convertProfile(UserProfile profile) {
+        GameProfile gProfile = new GameProfile(profile.getUUID(), profile.getName());
+        List<TextureProperty> textures = profile.getTextureProperties();
+
+        for (TextureProperty property : textures) {
+            gProfile.getProperties()
+                .put(property.getName(), new Property(property.getName(), property.getValue(), property.getSignature()));
         }
 
+        return gProfile;
+    }
+
+    public static PlayerProfile createProfile(UserProfile profile) {
         try {
-            Object enumArt = getEnumArtMethod.invoke(null, art);
-            for (Field field : enumArt.getClass().getDeclaredFields()) {
-                if (field.getType() == String.class) {
-                    return (String) field.get(enumArt);
+            return (PlayerProfile) getCraftConstructor("CraftGameProfile", GameProfile.class).newInstance(convertProfile(profile));
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+
+        return null;
+    }
+
+    private static GameProfile getGameProfile(Player player) {
+        try {
+            return (GameProfile) getGameProfile.invoke(player);
+
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+
+        return null;
+    }
+
+    public static UserProfile getUserProfile(Player player) {
+        return getUserProfile(getGameProfile(player));
+
+    }
+
+    public static UserProfile getUserProfile(GameProfile userProfile) {
+        UserProfile uProfile = new UserProfile(userProfile.getId(), userProfile.getName());
+
+        Collection<Property> textures = userProfile.getProperties().get("textures");
+
+        if (textures == null || textures.isEmpty()) {
+            return uProfile;
+        }
+
+        List<TextureProperty> properties = new ArrayList<>();
+
+        try {
+            for (Property property : textures) {
+                String name, value, sig;
+
+                if (propertyName != null) {
+                    name = (String) propertyName.invoke(property);
+                    value = (String) propertyValue.invoke(property);
+                    sig = (String) propertySignature.invoke(property);
+                } else {
+                    name = property.name();
+                    value = property.value();
+                    sig = property.signature();
                 }
+
+                properties.add(new TextureProperty(name, value, sig));
             }
-        } catch (Exception ex) {
-            ex.printStackTrace();
+        } catch (Exception e) {
+            e.printStackTrace();
         }
 
-        return null;
+        uProfile.setTextureProperties(properties);
+
+        return uProfile;
     }
 
-    public static Object getBlockPosition(int x, int y, int z) {
-        if (nmsReflection != null) {
-            return nmsReflection.getBlockPosition(x, y, z);
-        }
+    public static UserProfile getUserProfile(UUID uuid, String playerName) {
+        return ReflectionManagerAbstract.getUserProfile(uuid == null ? getRandomUUID() : uuid, playerName);
+    }
 
+    public static UserProfile getClonedProfile(UserProfile userProfile) {
+        return getUserProfileWithThisSkin(null, userProfile.getName(), userProfile);
+    }
+
+    public static UserProfile getUserProfileWithThisSkin(UUID uuid, String playerName, UserProfile profileWithSkin) {
         try {
-            return blockPositionConstructor.newInstance(x, y, z);
-        } catch (Exception ex) {
-            ex.printStackTrace();
-        }
-
-        return null;
-    }
-
-    public static Enum getEnumDirection(int direction) {
-        if (nmsReflection != null) {
-            return nmsReflection.getEnumDirection(direction);
-        }
-
-        try {
-            return (Enum) enumDirectionMethod.invoke(null, direction);
-        } catch (Exception ex) {
-            ex.printStackTrace();
-        }
-
-        return null;
-    }
-
-    public static Enum getEnumPlayerInfoAction(int action) {
-        try {
-            return enumPlayerInfoAction[action];
-        } catch (Exception ex) {
-            ex.printStackTrace();
-        }
-
-        return null;
-    }
-
-    public static PacketContainer updateTablistVisibility(Player player, boolean visible) {
-        if (DisguiseUtilities.isFancyHiddenTabs()) {
-            return nmsReflection.getTabListPacket(player.getPlayerListName(), ReflectionManager.getGameProfile(player), visible,
-                EnumWrappers.PlayerInfoAction.UPDATE_LISTED);
-        } else if (NmsVersion.v1_19_R2.isSupported()) {
-            return nmsReflection.getTabListPacket(player.getPlayerListName(), ReflectionManager.getGameProfile(player), visible,
-                visible ? EnumWrappers.PlayerInfoAction.ADD_PLAYER : EnumWrappers.PlayerInfoAction.REMOVE_PLAYER);
-        }
-
-        PlayerInfoData playerInfo =
-            new PlayerInfoData(ReflectionManager.getGameProfile(player), 0, EnumWrappers.NativeGameMode.fromBukkit((player).getGameMode()),
-                WrappedChatComponent.fromText(DisguiseUtilities.getPlayerListName(player)));
-
-        PacketContainer addTab = new PacketContainer(PacketType.Play.Server.PLAYER_INFO);
-
-        addTab.getPlayerInfoAction()
-            .write(0, visible ? EnumWrappers.PlayerInfoAction.ADD_PLAYER : EnumWrappers.PlayerInfoAction.REMOVE_PLAYER);
-        addTab.getPlayerInfoDataLists().write(0, Collections.singletonList(playerInfo));
-
-        return addTab;
-    }
-
-    public static PacketContainer createTablistAddPackets(PlayerDisguise disguise) {
-        if (!NmsVersion.v1_19_R2.isSupported()) {
-            return createTablistPacket(disguise, EnumWrappers.PlayerInfoAction.ADD_PLAYER);
-        }
-
-        return nmsReflection.getTabListPacket(disguise.getTablistName(), disguise.getGameProfile(), disguise.isDisplayedInTab(),
-            EnumWrappers.PlayerInfoAction.ADD_PLAYER, EnumWrappers.PlayerInfoAction.UPDATE_DISPLAY_NAME,
-            EnumWrappers.PlayerInfoAction.UPDATE_LISTED);
-    }
-
-    public static PacketContainer createTablistPacket(PlayerDisguise disguise, EnumWrappers.PlayerInfoAction action) {
-        if (nmsReflection != null) {
-            return nmsReflection.getTabListPacket(disguise.getTablistName(), disguise.getGameProfile(), disguise.isDisplayedInTab(),
-                action);
-        }
-
-        try {
-            WrappedGameProfile profile =
-                ReflectionManager.getGameProfileWithThisSkin(disguise.getGameProfile().getUUID(), disguise.getProfileName(),
-                    disguise.getGameProfile());
-            PlayerInfoData playerInfo = new PlayerInfoData(profile, 0, EnumWrappers.NativeGameMode.fromBukkit(GameMode.SURVIVAL),
-                WrappedChatComponent.fromText(disguise.getGameProfile().getName()));
-
-            PacketContainer sendTab = new PacketContainer(PacketType.Play.Server.PLAYER_INFO);
-
-            sendTab.getPlayerInfoAction().write(0, action);
-            sendTab.getPlayerInfoDataLists().write(0, Collections.singletonList(playerInfo));
-
-            return sendTab;
-        } catch (Exception ex) {
-            ex.printStackTrace();
-        }
-
-        return null;
-    }
-
-    public static WrappedGameProfile getGameProfile(Player player) {
-        return WrappedGameProfile.fromPlayer(player);
-    }
-
-    public static WrappedGameProfile getGameProfile(UUID uuid, String playerName) {
-        return ReflectionManagerAbstract.getGameProfile(uuid == null ? getRandomUUID() : uuid, playerName);
-    }
-
-    public static WrappedGameProfile getClonedProfile(WrappedGameProfile gameProfile) {
-        return getGameProfileWithThisSkin(null, gameProfile.getName(), gameProfile);
-    }
-
-    public static WrappedGameProfile getGameProfileWithThisSkin(UUID uuid, String playerName, WrappedGameProfile profileWithSkin) {
-        try {
-            WrappedGameProfile gameProfile = new WrappedGameProfile(uuid != null ? uuid : getRandomUUID(),
+            UserProfile userProfile = new UserProfile(uuid != null ? uuid : getRandomUUID(),
                 playerName == null || playerName.length() < 17 ? playerName : playerName.substring(0, 16));
 
             if (profileWithSkin != null) {
-                gameProfile.getProperties().putAll(profileWithSkin.getProperties());
+                userProfile.setTextureProperties(profileWithSkin.getTextureProperties());
             }
 
-            return gameProfile;
+            return userProfile;
         } catch (Exception ex) {
             ex.printStackTrace();
         }
@@ -1271,22 +1188,22 @@ public class ReflectionManager {
     }
 
     @SneakyThrows
-    public static void clearEntityTracker(Object tracker, Object player) {
-        clearEntityTracker.invoke(tracker, player);
+    public static void clearEntityTracker(Object trackerEntry, Object player) {
+        clearEntityTracker.invoke(trackerEntry, player);
     }
 
     @SneakyThrows
-    public static void addEntityTracker(Object tracker, Object player) {
-        addEntityTracker.invoke(tracker, player);
+    public static void addEntityTracker(Object trackerEntry, Object player) {
+        addEntityTracker.invoke(trackerEntry, player);
     }
 
     @SneakyThrows
     public static void addEntityToTrackedMap(Object tracker, Player player) {
-        Object nmsEntity = ReflectionManager.getPlayerConnectionOrPlayer(player);
+        Object nmsEntity = getPlayerConnectionOrPlayer(player);
 
         // Add the player to their own entity tracker
         if (!DisguiseUtilities.isRunningPaper() || NmsVersion.v1_17.isSupported()) {
-            ReflectionManager.getTrackedPlayers(tracker).add(nmsEntity);
+            getTrackedPlayers(tracker).add(nmsEntity);
         } else {
             Map<Object, Object> map = ((Map<Object, Object>) trackedPlayersMap.get(tracker));
             map.put(nmsEntity, true);
@@ -1295,28 +1212,14 @@ public class ReflectionManager {
 
     @SneakyThrows
     public static void removeEntityFromTracked(Object tracker, Player player) {
-        Object nmsEntity = ReflectionManager.getPlayerConnectionOrPlayer(player);
+        Object nmsEntity = getPlayerConnectionOrPlayer(player);
 
         if (!DisguiseUtilities.isRunningPaper() || NmsVersion.v1_17.isSupported()) {
-            ReflectionManager.getTrackedPlayers(tracker).remove(nmsEntity);
+            getTrackedPlayers(tracker).remove(nmsEntity);
         } else {
             Map<Object, Object> map = ((Map<Object, Object>) trackedPlayersMap.get(tracker));
             map.remove(nmsEntity);
         }
-    }
-
-    public static Object getNmsItem(ItemStack itemstack) {
-        if (nmsReflection != null) {
-            return nmsReflection.getNmsItem(itemstack);
-        }
-
-        try {
-            return itemAsNmsCopyMethod.invoke(null, itemstack);
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
-
-        return null;
     }
 
     public static Method getCraftMethod(String className, String methodName, Class<?>... parameters) {
@@ -1359,7 +1262,7 @@ public class ReflectionManager {
         }
 
         try {
-            return pingField.getInt(ReflectionManager.getNmsEntity(player));
+            return pingField.getInt(getNmsEntity(player));
         } catch (Exception ex) {
             ex.printStackTrace();
         }
@@ -1395,19 +1298,21 @@ public class ReflectionManager {
         return null;
     }
 
-    public static WrappedGameProfile getSkullBlob(WrappedGameProfile gameProfile) {
+    public static UserProfile getSkullBlob(UserProfile userProfile) {
         try {
             if (fillProfileProperties == null) {
-                ProfileResult result = sessionService.fetchProfile(gameProfile.getUUID(), true);
+                ProfileResult result = sessionService.fetchProfile(userProfile.getUUID(), true);
 
                 if (result == null) {
                     return null;
                 }
 
-                return WrappedGameProfile.fromHandle(result.profile());
+                return getUserProfile(result.profile());
             }
 
-            return WrappedGameProfile.fromHandle(fillProfileProperties.invoke(sessionService, gameProfile.getHandle(), true));
+            GameProfile gameProfile = new GameProfile(userProfile.getUUID(), userProfile.getName());
+
+            return getUserProfile((GameProfile) fillProfileProperties.invoke(sessionService, gameProfile, true));
         } catch (Exception ex) {
             ex.printStackTrace();
         }
@@ -1431,7 +1336,7 @@ public class ReflectionManager {
     /**
      * Gets the UUID of the player, as well as properly capitalized playername
      */
-    public static WrappedGameProfile grabProfileAddUUID(String playername) {
+    public static UserProfile grabProfileAddUUID(String playername) {
         try {
             LibsProfileLookupCaller callback = new LibsProfileLookupCaller();
 
@@ -1441,24 +1346,26 @@ public class ReflectionManager {
                 Object minecraftServer = getMinecraftServer();
 
                 for (Method method : getNmsClass("MinecraftServer").getMethods()) {
-                    if (method.getReturnType().getSimpleName().equals("GameProfileRepository")) {
-                        Object agent = Class.forName("com.mojang.authlib.Agent").getDeclaredField("MINECRAFT").get(null);
-
-                        Object profileRepo = method.invoke(minecraftServer);
-
-                        method.getReturnType().getMethod("findProfilesByNames", String[].class, agent.getClass(),
-                                Class.forName("com.mojang.authlib.ProfileLookupCallback"))
-                            .invoke(profileRepo, new String[]{playername}, agent, callback);
-                        break;
+                    if (!method.getReturnType().getSimpleName().equals("GameProfileRepository")) {
+                        continue;
                     }
+
+                    Object agent = Class.forName("com.mojang.authlib.Agent").getDeclaredField("MINECRAFT").get(null);
+
+                    Object profileRepo = method.invoke(minecraftServer);
+
+                    method.getReturnType().getMethod("findProfilesByNames", String[].class, agent.getClass(),
+                            Class.forName("com.mojang.authlib.ProfileLookupCallback"))
+                        .invoke(profileRepo, new String[]{playername}, agent, callback);
+                    break;
                 }
             }
 
-            if (callback.getGameProfile() != null) {
-                return callback.getGameProfile();
+            if (callback.getUserProfile() != null) {
+                return callback.getUserProfile();
             }
 
-            return getGameProfile(null, playername);
+            return getUserProfile(null, playername);
         } catch (Exception ex) {
             ex.printStackTrace();
         }
@@ -1485,120 +1392,25 @@ public class ReflectionManager {
         }
     }
 
-    public static Enum getSoundCategory(String category) {
-        if (nmsReflection != null) {
-            return nmsReflection.getSoundCategory(category);
-        }
-
-        return soundCategories.get(category);
-    }
-
-    public static Enum getSoundCategory(DisguiseType disguiseType) {
+    public static SoundCategory getSoundCategory(DisguiseType disguiseType) {
         if (disguiseType == DisguiseType.PLAYER) {
-            return getSoundCategory("player");
+            return SoundCategory.PLAYER;
         }
 
         Class<? extends Entity> entityClass = disguiseType.getEntityType().getEntityClass();
 
         if (Monster.class.isAssignableFrom(entityClass)) {
-            return getSoundCategory("hostile");
+            return SoundCategory.HOSTILE;
         }
 
         if (Ambient.class.isAssignableFrom(entityClass)) {
-            return getSoundCategory("ambient");
+            return SoundCategory.AMBIENT;
         }
 
-        return getSoundCategory("neutral");
+        return SoundCategory.NEUTRAL;
     }
 
-    /**
-     * Creates the NMS object EnumItemSlot from an EquipmentSlot.
-     *
-     * @param slot
-     * @return null if the equipment slot is null
-     */
-    public static Enum createEnumItemSlot(EquipmentSlot slot) {
-        if (nmsReflection != null) {
-            return nmsReflection.createEnumItemSlot(slot);
-        }
-
-        switch (slot) {
-            case HAND:
-                return enumItemSlots[0];
-            case OFF_HAND:
-                return enumItemSlots[1];
-            case FEET:
-                return enumItemSlots[2];
-            case LEGS:
-                return enumItemSlots[3];
-            case CHEST:
-                return enumItemSlots[4];
-            case HEAD:
-                return enumItemSlots[5];
-            default:
-                return null;
-        }
-    }
-
-    /**
-     * Creates the Bukkit object EquipmentSlot from an EnumItemSlot object.
-     *
-     * @return null if the object isn't an nms EnumItemSlot
-     */
-    public static EquipmentSlot createEquipmentSlot(Object enumItemSlot) {
-        try {
-            Enum nmsSlot = (Enum) enumItemSlot;
-
-            switch (nmsSlot.name()) {
-                case "MAINHAND":
-                    return EquipmentSlot.HAND;
-                case "OFFHAND":
-                    return EquipmentSlot.OFF_HAND;
-                case "FEET":
-                    return EquipmentSlot.FEET;
-                case "LEGS":
-                    return EquipmentSlot.LEGS;
-                case "CHEST":
-                    return EquipmentSlot.CHEST;
-                case "HEAD":
-                    return EquipmentSlot.HEAD;
-            }
-        } catch (Exception ignored) {
-        }
-
-        return null;
-    }
-
-    /**
-     * Gets equipment from this entity based on the slot given.
-     *
-     * @param slot
-     * @return null if the disguisedEntity is not an instance of a living entity
-     */
-    public static ItemStack getEquipment(EquipmentSlot slot, Entity disguisedEntity) {
-        if (!(disguisedEntity instanceof LivingEntity)) {
-            return null;
-        }
-
-        switch (slot) {
-            case HAND:
-                return ((LivingEntity) disguisedEntity).getEquipment().getItemInMainHand();
-            case OFF_HAND:
-                return ((LivingEntity) disguisedEntity).getEquipment().getItemInOffHand();
-            case FEET:
-                return ((LivingEntity) disguisedEntity).getEquipment().getBoots();
-            case LEGS:
-                return ((LivingEntity) disguisedEntity).getEquipment().getLeggings();
-            case CHEST:
-                return ((LivingEntity) disguisedEntity).getEquipment().getChestplate();
-            case HEAD:
-                return ((LivingEntity) disguisedEntity).getEquipment().getHelmet();
-            default:
-                return null;
-        }
-    }
-
-    public static Object getSoundString(Sound sound) {
+    public static String getSoundString(Sound sound) {
         if (nmsReflection != null) {
             return nmsReflection.getSoundString(sound);
         }
@@ -1608,7 +1420,7 @@ public class ReflectionManager {
                 return soundEffectGetKey.get(soundEffectGetMethod.invoke(null, sound)).toString();
             }
 
-            return soundGetMethod.invoke(null, sound);
+            return (String) soundGetMethod.invoke(null, sound);
         } catch (IllegalAccessException | InvocationTargetException e) {
             e.printStackTrace();
         }
@@ -1616,168 +1428,140 @@ public class ReflectionManager {
         return null;
     }
 
-    public static Class getNmsClass(Class cl) {
-        if (VillagerData.class.isAssignableFrom(cl)) {
-            return getNmsClass("VillagerData");
-        } else if (BlockPosition.class.isAssignableFrom(cl)) {
-            return getNmsClass("BlockPosition");
-        } else if (WrappedBlockData.class.isAssignableFrom(cl)) {
-            return getNmsClass("IBlockData");
-        } else if (ItemStack.class.isAssignableFrom(cl)) {
-            return getNmsClass("ItemStack");
-        } else if (WrappedChatComponent.class.isAssignableFrom(cl)) {
-            return getNmsClass("IChatBaseComponent");
-        } else if (Vector3F.class.isAssignableFrom(cl)) {
-            return getNmsClass("Vector3f");
-        } else if (EulerAngle.class.isAssignableFrom(cl)) {
-            return getNmsClass("Vector3f");
-        } else if (Direction.class.isAssignableFrom(cl)) {
-            return getNmsClass("EnumDirection");
-        } else if (WrappedParticle.class.isAssignableFrom(cl)) {
-            return getNmsClass("ParticleParam");
-        } else if (EntityPose.class.isAssignableFrom(cl)) {
-            return entityPoseClass;
-        } else if (NbtWrapper.class.isAssignableFrom(cl)) {
-            return getNmsClass("NBTTagCompound");
-        }
-
-        if (NmsVersion.v1_19_R1.isSupported()) {
-            if (Frog.Variant.class.isAssignableFrom(cl)) {
-                return getNmsClass("FrogVariant");
+    public static <T> T convertMetaFromSerialized(MetaIndex<T> index, Object value) {
+        // Hmm, not sure why I made this method when it's as far, only called for verifying metadata mappings is correct on load
+        if (index == MetaIndex.BOAT_TYPE_OLD) {
+            return (T) TreeSpecies.getByData((byte) ((int) value));
+        } else if (index == MetaIndex.CAT_TYPE) {
+            if (nmsReflection != null) {
+                return (T) nmsReflection.getCatTypeFromInt((int) value);
             }
 
-            if (Cat.Type.class.isAssignableFrom(cl)) {
-                return getNmsClass("CatVariant");
+            return (T) fromEnum(Cat.Type.class, (int) value);
+        } else if (index == MetaIndex.FROG_VARIANT) {
+            if (nmsReflection != null) {
+                return (T) nmsReflection.getFrogVariantFromInt((int) value);
             }
 
-            if (Art.class.isAssignableFrom(cl)) {
-                return getNmsClass("PaintingVariant");
+            return (T) fromEnum(Frog.Variant.class, (int) value);
+        } else if (index == MetaIndex.PAINTING) {
+            return (T) nmsReflection.getPaintingFromInt((int) value);
+        } else if (index == MetaIndex.WOLF_VARIANT) {
+            return (T) nmsReflection.getWolfVariantFromInt((int) value);
+        } else if (index == MetaIndex.CAT_COLLAR || index == MetaIndex.WOLF_COLLAR) {
+            return (T) AnimalColor.getColorByDye((int) value);
+        } else if (index.isItemStack()) {
+            return (T) DisguiseUtilities.toBukkitItemStack((com.github.retrooper.packetevents.protocol.item.ItemStack) value);
+        } else if (index.isBlock() || index.isBlockOpt()) {
+            return (T) WrappedBlockState.getByGlobalId((int) value);
+           /* BlockData data = getBlockDataByCombinedId((int) value);
+
+            return (T) SpigotConversionUtil.fromBukkitBlockData(data);*/
+        } /*else if (index.isBlockOpt()) {
+            if (NmsVersion.v1_13.isSupported()) {
+                BlockData data = getBlockDataByCombinedId((int) value);
+
+                return (T) SpigotConversionUtil.fromBukkitBlockData(data);
             }
-        }
 
-        if (NmsVersion.v1_19_R3.isSupported()) {
-            if (BlockData.class.isAssignableFrom(cl)) {
-                return getNmsClass("IBlockData");
+            if ((int) value == 0) {
+                return (T) Optional.empty();
             }
+
+            MaterialData mData = SpigotReflectionUtil.getBlockDataByCombinedId((int) value);
+
+            return (T) Optional.of(SpigotConversionUtil.fromBukkitMaterialData(mData));
+        }*/ else if (index == MetaIndex.AREA_EFFECT_CLOUD_COLOR) {
+            return (T) Color.fromRGB((int) value);
+        } else if (index == MetaIndex.PARROT_VARIANT) {
+            return (T) fromEnum(Parrot.Variant.class, (int) value);
+        } else if (index == MetaIndex.AXOLOTL_VARIANT) {
+            return (T) fromEnum(Axolotl.Variant.class, (int) value);
+        } else if (index == MetaIndex.OCELOT_TYPE) {
+            return (T) fromEnum(Ocelot.Type.class, (int) value);
+        } else if (index == MetaIndex.FOX_TYPE) {
+            return (T) fromEnum(Fox.Type.class, (int) value);
+        } else if (index == MetaIndex.RABBIT_TYPE) {
+            return (T) RabbitType.getType((int) value);
+        } else if (index == MetaIndex.LLAMA_COLOR) {
+            return (T) fromEnum(Llama.Color.class, (int) value);
+        } else if (index == MetaIndex.PANDA_MAIN_GENE || index == MetaIndex.PANDA_HIDDEN_GENE) {
+            return (T) fromEnum(Panda.Gene.class, (byte) value);
+        } else if (index == MetaIndex.ITEM_DISPLAY_TRANSFORM) {
+            return (T) fromEnum(ItemDisplay.ItemDisplayTransform.class, (byte) value);
+        } else if (index == MetaIndex.BOAT_TYPE_NEW) {
+            return (T) fromEnum(Boat.Type.class, (int) value);
         }
 
-        if (nmsReflection != null) {
-            return nmsReflection.getNmsClass(cl);
-        }
-
-        return cl;
+        return (T) value;
     }
 
-    public static Object convertInvalidMeta(Object value) {
+    public static Object convertMetaToSerialized(MetaIndex index, Object value) {
         if (value instanceof Optional) {
-            Optional opt = (Optional) value;
-
-            if (!opt.isPresent()) {
-                return NmsVersion.v1_13.isSupported() ? value : com.google.common.base.Optional.absent();
-            }
-
-            if (nmsReflection != null) {
-                return nmsReflection.convertOptional(opt.get());
-            }
-
-            Object val = opt.get();
-
-            if (val instanceof BlockPosition) {
-                BlockPosition pos = (BlockPosition) val;
-
-                try {
-                    Object obj = blockPositionConstructor.newInstance(pos.getX(), pos.getY(), pos.getZ());
-
-                    return NmsVersion.v1_13.isSupported() ? Optional.of(obj) : com.google.common.base.Optional.of(obj);
-                } catch (Exception ex) {
-                    ex.printStackTrace();
+            if (!((Optional) value).isPresent()) {
+                if (index.getDataType() == EntityDataTypes.OPTIONAL_BLOCK_STATE) {
+                    return 0;
                 }
-            } else if (val instanceof WrappedBlockData) {
-                try {
-                    Object obj = ((WrappedBlockData) val).getHandle();
-                    return NmsVersion.v1_13.isSupported() ? Optional.of(obj) : com.google.common.base.Optional.of(obj);
-                } catch (Exception ex) {
-                    ex.printStackTrace();
-                }
-            } else if (val instanceof ItemStack) {
-                val = getNmsItem((ItemStack) val);
 
-                if (val == null) {
-                    return NmsVersion.v1_13.isSupported() ? Optional.empty() : com.google.common.base.Optional.absent();
-                } else {
-                    return Optional.of(val);
-                }
-            } else if (val instanceof WrappedChatComponent) {
-                Object obj = ((WrappedChatComponent) val).getHandle();
-
-                return NmsVersion.v1_13.isSupported() ? Optional.of(obj) : com.google.common.base.Optional.of(obj);
-            } else if (!NmsVersion.v1_13.isSupported()) {
-                return com.google.common.base.Optional.of(val);
-            } else {
-                return Optional.of(val);
-            }
-        } else if (value instanceof Vector3F) {
-            Vector3F angle = (Vector3F) value;
-
-            if (nmsReflection != null) {
-                return nmsReflection.convertVec3(angle);
+                return value;
             }
 
-            try {
-                return vector3FConstructor.newInstance(angle.getX(), angle.getY(), angle.getZ());
-            } catch (Exception ex) {
-                ex.printStackTrace();
-            }
-        } else if (value instanceof EulerAngle) {
-            EulerAngle angle = (EulerAngle) value;
-            if (nmsReflection != null) {
-                return nmsReflection.convertVec3(angle);
-            }
+            Object dVal = ((Optional) value).get();
 
-            try {
-                return vector3FConstructor.newInstance((float) angle.getX(), (float) angle.getY(), (float) angle.getZ());
-            } catch (Exception ex) {
-                ex.printStackTrace();
+            if (dVal instanceof WrappedBlockState) {
+                value = dVal;
             }
-        } else if (value instanceof Direction) {
-            if (nmsReflection != null) {
-                return nmsReflection.convertDirection((Direction) value);
-            }
-
-            try {
-                return enumDirectionFrom.invoke(null, ((Direction) value).ordinal());
-            } catch (Exception ex) {
-                ex.printStackTrace();
-            }
-        } else if (value instanceof BlockPosition) {
-            BlockPosition pos = (BlockPosition) value;
-            if (nmsReflection != null) {
-                return nmsReflection.getBlockPosition(pos.getX(), pos.getY(), pos.getZ());
-            }
-
-            try {
-                return blockPositionConstructor.newInstance(pos.getX(), pos.getY(), pos.getZ());
-            } catch (Exception ex) {
-                ex.printStackTrace();
-            }
-        } else if (value instanceof ItemStack) {
-            return getNmsItem((ItemStack) value);
-        } else if (value instanceof Double) {
-            return ((Double) value).floatValue();
-        } else if (value instanceof NbtWrapper) {
-            return ((NbtWrapper) value).getHandle();
-        } else if (value instanceof WrappedParticle) {
-            return ((WrappedParticle) value).getHandle();
-        } else if (value instanceof EntityPose) {
-            return getNmsEntityPose((EntityPose) value);
-        } else if (value instanceof VillagerData) {
-            return getNmsVillagerData((VillagerData) value);
-        } else if (value instanceof WrappedChatComponent) {
-            return ((WrappedChatComponent) value).getHandle();
         }
 
-        if (nmsReflection != null) {
-            return nmsReflection.convertInvalidMeta(value);
+        if (value instanceof WrappedBlockState) {
+            return ((WrappedBlockState) value).getGlobalId();
+        }
+
+        if (NmsVersion.v1_14.isSupported()) {
+            if (value instanceof Cat.Type) {
+                if (nmsReflection != null) {
+                    return nmsReflection.getCatVariantAsInt((Cat.Type) value);
+                }
+
+                return enumOrdinal(value);
+            }
+
+            if (NmsVersion.v1_19_R1.isSupported()) {
+                if (value instanceof Frog.Variant) {
+                    return nmsReflection.getFrogVariantAsInt((Frog.Variant) value);
+                } else if (value instanceof Art) {
+                    return nmsReflection.getPaintingAsInt((Art) value);
+                } else if (value instanceof Boat.Type) {
+                    return enumOrdinal(value);
+                }
+
+                if (NmsVersion.v1_20_R4.isSupported()) {
+                    if (value instanceof Wolf.Variant) {
+                        return nmsReflection.getWolfVariantAsInt((Wolf.Variant) value);
+                    }
+                }
+            }
+        }
+
+        if (value instanceof Color) {
+            return ((Color) value).asRGB();
+        } else if (value instanceof TreeSpecies) {
+            return (int) ((TreeSpecies) value).getData();
+        } else if (value instanceof ItemStack) {
+            return DisguiseUtilities.fromBukkitItemStack((ItemStack) value);
+        } else if (value instanceof Rabbit.Type) {
+            return RabbitType.getTypeId((Rabbit.Type) value);
+        } else if (index == MetaIndex.CAT_COLLAR || index == MetaIndex.WOLF_COLLAR) {
+            return (int) ((AnimalColor) value).getDyeColor().getDyeData();
+        } else if (value instanceof Enum && !(value instanceof SnifferState || value instanceof EntityPose || value instanceof BlockFace ||
+            value instanceof ArmadilloState)) {
+            int v = enumOrdinal(value);
+
+            if (index.isByteValues()) {
+                return (byte) v;
+            }
+
+            return v;
         }
 
         return value;
@@ -1797,7 +1581,7 @@ public class ReflectionManager {
                 return (Material) toMinecraft.invoke(instance, name);
             }
 
-            Object mcKey = getNmsConstructor("MinecraftKey", String.class).newInstance(name);
+            Object mcKey = getNmsConstructor("MinecraftKey", String.class).newInstance(name.toLowerCase(Locale.ENGLISH));
 
             Object registry = getNmsField("IRegistry", "ITEM").get(null);
 
@@ -1812,7 +1596,7 @@ public class ReflectionManager {
 
             return (Material) getMaterial.invoke(null, item);
         } catch (Exception ex) {
-            DisguiseUtilities.getLogger().severe("Error when trying to convert '" + name + "' into a Material");
+            LibsDisguises.getInstance().getLogger().severe("Error when trying to convert '" + name + "' into a Material");
             ex.printStackTrace();
 
             if (ex.getCause() != null) {
@@ -1859,39 +1643,6 @@ public class ReflectionManager {
         return null;
     }
 
-    public static Object getNmsVillagerData(VillagerData data) {
-        if (nmsReflection != null) {
-            return nmsReflection.getNmsVillagerData(data.getType(), data.getProfession(), data.getLevel());
-        }
-
-        Object type = getVillagerType(data.getType());
-        Object profession = getVillagerProfession(data.getProfession());
-
-        try {
-            return villagerDataConstructor.newInstance(type, profession, data.getLevel());
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
-
-        return null;
-    }
-
-    public static Object getVillagerType(Villager.Type type) {
-        if (nmsReflection != null) {
-            return nmsReflection.getVillagerType(type);
-        }
-
-        try {
-            Object mcKey = bukkitKeyToNms.invoke(null, type.getKey());
-
-            return registryBlocksGetMethod.invoke(villagerTypeRegistry, mcKey);
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
-
-        return null;
-    }
-
     public static boolean isAssignableFrom(Class toCheck, Class checkAgainst) {
         if (!NmsVersion.v1_14.isSupported() && toCheck != checkAgainst) {
             if (toCheck == OcelotWatcher.class) {
@@ -1916,75 +1667,6 @@ public class ReflectionManager {
         return cl.getSuperclass();
     }
 
-    public static Object getVillagerProfession(Villager.Profession profession) {
-        if (nmsReflection != null) {
-            return nmsReflection.getVillagerProfession(profession);
-        }
-
-        try {
-            Object mcKey = bukkitKeyToNms.invoke(null, profession.getKey());
-
-            return registryBlocksGetMethod.invoke(villagerProfessionRegistry, mcKey);
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
-
-        return null;
-    }
-
-    public static WrappedDataWatcherObject createDataWatcherObject(MetaIndex index, Object value) {
-        if (value == null) {
-            return null;
-        }
-
-        return new WrappedDataWatcherObject(index.getIndex(), index.getSerializer());
-    }
-
-    /**
-     * This creates a DataWatcherItem usable with WrappedWatchableObject
-     *
-     * @param id
-     * @param value
-     * @return
-     */
-    public static Object createDataWatcherItem(MetaIndex id, Object value) {
-        WrappedDataWatcherObject watcherObject = createDataWatcherObject(id, value);
-
-        if (nmsReflection != null) {
-            return nmsReflection.createDataWatcherItem(watcherObject, convertInvalidMeta(value));
-        }
-
-        try {
-            return dataWatcherItemConstructor.newInstance(watcherObject.getHandle(), convertInvalidMeta(value));
-        } catch (InstantiationException | IllegalAccessException | InvocationTargetException e) {
-            e.printStackTrace();
-        }
-
-        return null;
-    }
-
-    public static Object createSoundEffect(String minecraftKey) {
-        if (nmsReflection != null) {
-            return nmsReflection.createSoundEvent(minecraftKey);
-        }
-
-        try {
-            return getNmsConstructor("SoundEffect", getNmsClass("MinecraftKey")).newInstance(createMinecraftKey(minecraftKey));
-        } catch (Exception ex) {
-            ex.printStackTrace();
-        }
-
-        return null;
-    }
-
-    public static Object createSoundEvent(String name) {
-        if (nmsReflection != null) {
-            return nmsReflection.createSoundEvent(name);
-        }
-
-        return createMinecraftKey(name);
-    }
-
     public static Object createMinecraftKey(String name) {
         if (nmsReflection != null) {
             return nmsReflection.createMinecraftKey(name);
@@ -1992,20 +1674,6 @@ public class ReflectionManager {
 
         try {
             return getNmsConstructor("MinecraftKey", String.class).newInstance(name);
-        } catch (Exception ex) {
-            ex.printStackTrace();
-        }
-
-        return null;
-    }
-
-    public static Object getVec3D(Vector vector) {
-        if (nmsReflection != null) {
-            return nmsReflection.getVec3D(vector);
-        }
-
-        try {
-            return vec3DConstructor.newInstance(vector.getX(), vector.getY(), vector.getZ());
         } catch (Exception ex) {
             ex.printStackTrace();
         }
@@ -2138,29 +1806,8 @@ public class ReflectionManager {
         throw new IllegalStateException("The entity " + name + " is not registered!");
     }
 
-    public static Object getNmsEntityPose(EntityPose entityPose) {
-        if (nmsReflection != null) {
-            return nmsReflection.getNmsEntityPose(
-                entityPose == EntityPose.SNEAKING && NmsVersion.v1_15.isSupported() ? "CROUCHING" : entityPose.name());
-        }
-
-        return Enum.valueOf(entityPoseClass,
-            entityPose == EntityPose.SNEAKING && NmsVersion.v1_15.isSupported() ? "CROUCHING" : entityPose.name());
-    }
-
-    public static EntityPose getEntityPose(Object nmsEntityPose) {
-        String name = ((Enum) nmsEntityPose).name();
-        return EntityPose.valueOf(name.equals("CROUCHING") ? "SNEAKING" : name);
-    }
-
-    public static WrappedWatchableObject createWatchable(MetaIndex index, Object obj) {
-        Object watcherItem = createDataWatcherItem(index, obj);
-
-        if (watcherItem == null) {
-            return null;
-        }
-
-        return new WrappedWatchableObject(watcherItem);
+    public static EntityData getEntityData(MetaIndex index, Object obj, boolean bukkitReadable) {
+        return new EntityData(index.getIndex(), index.getDataType(), bukkitReadable ? convertMetaToSerialized(index, obj) : obj);
     }
 
     public static int getCombinedIdByBlockData(BlockData data) {
@@ -2186,7 +1833,7 @@ public class ReflectionManager {
 
         try {
             if (!NmsVersion.v1_13.isSupported()) {
-                return itemStack.getType().ordinal() + (itemStack.getDurability() << 12);
+                return enumOrdinal(itemStack.getType()) + (itemStack.getDurability() << 12);
             }
 
             Object nmsBlock = magicGetBlock.invoke(null, itemStack.getType());
@@ -2381,15 +2028,15 @@ public class ReflectionManager {
                 Class watcherClass = getFlagWatcher(disguiseType);
 
                 if (watcherClass == null) {
-                    DisguiseUtilities.getLogger().severe("Error loading " + disguiseType.name() + ", FlagWatcher not assigned");
+                    LibsDisguises.getInstance().getLogger().severe("Error loading " + disguiseType.name() + ", FlagWatcher not assigned");
                     continue;
                 }
 
                 // Invalidate invalid distribution
                 if (LibsPremium.isPremium() && ((LibsPremium.getPaidInformation() != null && LibsPremium.getPaidInformation().isPremium() &&
-                    !LibsPremium.getPaidInformation().isLegit()) ||
+                    !LibsPremium.getPaidInformation().isPaid()) ||
                     (LibsPremium.getPluginInformation() != null && LibsPremium.getPluginInformation().isPremium() &&
-                        !LibsPremium.getPluginInformation().isLegit()))) {
+                        !LibsPremium.getPluginInformation().isPaid()))) {
                     throw new IllegalStateException(
                         "Error while checking pi rate on startup! Please re-download the jar from SpigotMC before " +
                             "reporting this error!");
@@ -2427,14 +2074,14 @@ public class ReflectionManager {
     private static void createNMSValues(DisguiseType disguiseType) {
         String nmsEntityName = toReadable(disguiseType.name());
 
-        Class nmsClass = ReflectionManager.getNmsClassIgnoreErrors("Entity" + nmsEntityName);
+        Class nmsClass = getNmsClassIgnoreErrors("Entity" + nmsEntityName);
 
         if (nmsClass == null || Modifier.isAbstract(nmsClass.getModifiers())) {
             String[] split = splitReadable(disguiseType.name());
             ArrayUtils.reverse(split);
 
             nmsEntityName = StringUtils.join(split);
-            nmsClass = ReflectionManager.getNmsClassIgnoreErrors("Entity" + nmsEntityName);
+            nmsClass = getNmsClassIgnoreErrors("Entity" + nmsEntityName);
 
             if (nmsClass == null || Modifier.isAbstract(nmsClass.getModifiers())) {
                 nmsEntityName = null;
@@ -2461,6 +2108,10 @@ public class ReflectionManager {
                 case SNIFFER:
                 case BREEZE:
                 case WIND_CHARGE:
+                case BOGGED:
+                case ARMADILLO:
+                case BREEZE_WIND_CHARGE:
+                case OMINOUS_ITEM_SPAWNER:
                     nmsEntityName = disguiseType.toReadable().replace(" ", "");
                     break;
                 case DONKEY:
@@ -2547,118 +2198,178 @@ public class ReflectionManager {
             }
 
             if (nmsEntityName == null) {
-                DisguiseUtilities.getLogger().warning("Entity name not found! (" + disguiseType.name() + ")");
+                LibsDisguises.getInstance().getLogger().warning("Entity name not found! (" + disguiseType.name() + ")");
                 return;
             }
 
-            Object nmsEntity = ReflectionManager.createEntityInstance(disguiseType,
-                nmsReflection != null ? disguiseType.getEntityType().getKey().getKey() : nmsEntityName);
+            Object nmsEntity =
+                createEntityInstance(disguiseType, nmsReflection != null ? disguiseType.getEntityType().getKey().getKey() : nmsEntityName);
 
             if (nmsEntity == null) {
-                DisguiseUtilities.getLogger().warning("Entity not found! (" + nmsEntityName + ")");
+                LibsDisguises.getInstance().getLogger().warning("Entity not found! (" + nmsEntityName + ")");
                 return;
             }
 
-            disguiseType.setTypeId(NmsVersion.v1_13.isSupported() ? ReflectionManager.getEntityType(disguiseType.getEntityType()) : null,
-                ReflectionManager.getEntityTypeId(disguiseType.getEntityType()));
+            disguiseType.setTypeId(NmsVersion.v1_13.isSupported() ? getEntityType(disguiseType.getEntityType()) : null,
+                getEntityTypeId(disguiseType.getEntityType()));
 
-            Entity bukkitEntity = ReflectionManager.getBukkitEntity(nmsEntity);
+            Entity bukkitEntity = getBukkitEntity(nmsEntity);
 
             DisguiseValues disguiseValues =
                 new DisguiseValues(disguiseType, bukkitEntity instanceof Damageable ? ((Damageable) bukkitEntity).getMaxHealth() : 0);
 
-            WrappedDataWatcher watcher = WrappedDataWatcher.getEntityWatcher(bukkitEntity);
+            List<EntityData> watcher = getEntityWatcher(bukkitEntity);
             ArrayList<MetaIndex> indexes = MetaIndex.getMetaIndexes(disguiseType.getWatcherClass());
             boolean loggedName = false;
 
-            for (WrappedWatchableObject watch : watcher.getWatchableObjects()) {
-                MetaIndex flagType = MetaIndex.getMetaIndex(disguiseType.getWatcherClass(), watch.getIndex());
+            for (EntityData data : watcher) {
+                MetaIndex metaIndex = MetaIndex.getMetaIndex(disguiseType.getWatcherClass(), data.getIndex());
 
-                if (flagType == null) {
+                if (metaIndex == null) {
                     // Hide purpur's decision to become a modded server
-                    if (disguiseType == DisguiseType.GLOW_SQUID && watch.getRawValue().getClass() == String.class) {
+                    if (disguiseType == DisguiseType.GLOW_SQUID && data.getValue().getClass() == String.class) {
                         continue;
                     }
 
-                    DisguiseUtilities.getLogger().severe("MetaIndex not found for " + disguiseType + "! Index: " + watch.getIndex());
-                    DisguiseUtilities.getLogger().severe(
-                        "Value: " + watch.getRawValue() + " (" + watch.getRawValue().getClass() + ") (" + nmsEntity.getClass() + ") & " +
+                    LibsDisguises.getInstance().getLogger().severe(StringUtils.repeat("-", 20));
+                    LibsDisguises.getInstance().getLogger()
+                        .severe("MetaIndex not found for " + disguiseType + "! Index: " + data.getIndex());
+                    LibsDisguises.getInstance().getLogger().severe(
+                        "Value: " + data.getValue() + " (" + data.getValue().getClass() + ") (" + nmsEntity.getClass() + ") & " +
                             disguiseType.getWatcherClass().getSimpleName());
 
                     continue;
                 }
 
-                indexes.remove(flagType);
+                indexes.remove(metaIndex);
 
-                Object ourValue = ReflectionManager.convertInvalidMeta(flagType.getDefault());
-                Object nmsValue = ReflectionManager.convertInvalidMeta(watch.getRawValue());
+                Object ourDefaultBukkit = metaIndex.getDefault();
+                Object ourDefaultSerialized = convertMetaToSerialized(metaIndex, ourDefaultBukkit);
+                Object minecraftDefaultBukkit = convertMetaFromSerialized(metaIndex, data.getValue());
+                Object minecraftDefaultSerialized = data.getValue();
 
-                if (ourValue.getClass() != nmsValue.getClass()) {
+                if (minecraftDefaultBukkit == null) {
+                    minecraftDefaultBukkit = "ld-minecraft-null";
+                }
+
+                if (ourDefaultBukkit == null) {
+                    ourDefaultBukkit = "ld-bukkit-null";
+                }
+
+                if (minecraftDefaultBukkit.getClass().getSimpleName().equals("CraftItemStack") &&
+                    ourDefaultBukkit.getClass().getSimpleName().equals("ItemStack")) {
+                    ourDefaultBukkit = getCraftItem((ItemStack) ourDefaultBukkit);
+                }
+
+                if (ourDefaultBukkit.getClass() != minecraftDefaultBukkit.getClass() || metaIndex.getDataType() != data.getType() ||
+                    minecraftDefaultSerialized.getClass() != ourDefaultSerialized.getClass()) {
                     if (!loggedName) {
-                        DisguiseUtilities.getLogger().severe(StringUtils.repeat("=", 20));
-                        DisguiseUtilities.getLogger().severe("MetaIndex mismatch! Disguise " + disguiseType + ", Entity " + nmsEntityName);
+                        LibsDisguises.getInstance().getLogger().severe(StringUtils.repeat("=", 20));
+                        LibsDisguises.getInstance().getLogger()
+                            .severe("MetaIndex mismatch! Disguise " + disguiseType + ", Entity " + nmsEntityName);
                         loggedName = true;
                     }
 
-                    DisguiseUtilities.getLogger().severe(StringUtils.repeat("-", 20));
-                    DisguiseUtilities.getLogger().severe(
-                        "Index: " + watch.getIndex() + " | " + flagType.getFlagWatcher().getSimpleName() + " | " +
-                            MetaIndex.getName(flagType));
-                    Object flagDefault = flagType.getDefault();
+                    LibsDisguises.getInstance().getLogger().severe(StringUtils.repeat("-", 20));
+                    LibsDisguises.getInstance().getLogger().severe(
+                        "Index: " + data.getIndex() + " | " + metaIndex.getFlagWatcher().getSimpleName() + " | " +
+                            MetaIndex.getName(metaIndex));
 
-                    DisguiseUtilities.getLogger().severe("LibsDisguises: " + flagDefault + " (" + flagDefault.getClass() + ")");
-                    DisguiseUtilities.getLogger().severe("LibsDisguises Converted: " + ourValue + " (" + ourValue.getClass() + ")");
-                    DisguiseUtilities.getLogger().severe("Minecraft: " + watch.getRawValue() + " (" + watch.getRawValue().getClass() + ")");
-                    DisguiseUtilities.getLogger().severe("Minecraft Converted: " + nmsValue + " (" + nmsValue.getClass() + ")");
-                    DisguiseUtilities.getLogger().severe(StringUtils.repeat("-", 20));
+                    LibsDisguises.getInstance().getLogger()
+                        .severe("LibsDisguises Bukkit: " + ourDefaultBukkit + " (" + ourDefaultBukkit.getClass() + ")");
+                    LibsDisguises.getInstance().getLogger()
+                        .severe("LibsDisguises Serialized: " + ourDefaultSerialized + " (" + ourDefaultSerialized.getClass() + ")");
+                    LibsDisguises.getInstance().getLogger().severe("LibsDisguises Data Type: " + metaIndex.getDataType().getName());
+                    LibsDisguises.getInstance().getLogger()
+                        .severe("Minecraft Bukkit: " + minecraftDefaultBukkit + " (" + minecraftDefaultBukkit.getClass() + ")");
+                    LibsDisguises.getInstance().getLogger()
+                        .severe("Minecraft Serialized: " + minecraftDefaultSerialized + " (" + minecraftDefaultSerialized.getClass() + ")");
+                    LibsDisguises.getInstance().getLogger().severe("Minecraft Data Type: " + data.getType().getName());
+                    LibsDisguises.getInstance().getLogger()
+                        .severe("LibsDisguises Serializer Data Type: " + metaIndex.getDataType().getName());
+                    LibsDisguises.getInstance().getLogger().severe("Minecraft Serializer Data Type: " + data.getType().getName());
+                    LibsDisguises.getInstance().getLogger().severe(StringUtils.repeat("-", 20));
                 }
             }
 
             for (MetaIndex index : indexes) {
-                DisguiseUtilities.getLogger().severe(
+                LibsDisguises.getInstance().getLogger().severe(StringUtils.repeat("-", 20));
+                LibsDisguises.getInstance().getLogger().severe(
                     disguiseType + " has MetaIndex remaining! " + index.getFlagWatcher().getSimpleName() + " at index " + index.getIndex());
             }
 
             SoundGroup sound = SoundGroup.getGroup(disguiseType.name());
 
             if (sound != null) {
-                Float soundStrength = ReflectionManager.getSoundModifier(nmsEntity);
+                Float soundStrength = getSoundModifier(nmsEntity);
 
                 if (soundStrength != null) {
                     sound.setDamageAndIdleSoundVolume(soundStrength);
 
                     // This should only display on custom builds
-                    if (disguiseType == DisguiseType.COW && soundStrength != 0.4F && !LibsDisguises.getInstance().isNumberedBuild()) {
-                        DisguiseUtilities.getLogger().severe("The hurt sound volume may be wrong on the COW disguise! Bad nms update?");
+                    if (disguiseType == DisguiseType.COW && soundStrength != 0.4F && !LibsDisguises.getInstance().isJenkins()) {
+                        LibsDisguises.getInstance().getLogger()
+                            .severe("The hurt sound volume may be wrong on the COW disguise! Bad nms update?");
                     }
                 }
             }
 
             // Get the bounding box
-            disguiseValues.setAdultBox(ReflectionManager.getBoundingBox(bukkitEntity));
+            disguiseValues.setAdultBox(getBoundingBox(bukkitEntity));
 
             if (bukkitEntity instanceof Ageable) {
                 ((Ageable) bukkitEntity).setBaby();
 
-                disguiseValues.setBabyBox(ReflectionManager.getBoundingBox(bukkitEntity));
+                disguiseValues.setBabyBox(getBoundingBox(bukkitEntity));
             } else if (bukkitEntity instanceof Zombie) {
                 ((Zombie) bukkitEntity).setBaby(true);
 
-                disguiseValues.setBabyBox(ReflectionManager.getBoundingBox(bukkitEntity));
+                disguiseValues.setBabyBox(getBoundingBox(bukkitEntity));
             } else if (bukkitEntity instanceof ArmorStand) {
                 ((ArmorStand) bukkitEntity).setSmall(true);
 
-                disguiseValues.setBabyBox(ReflectionManager.getBoundingBox(bukkitEntity));
+                disguiseValues.setBabyBox(getBoundingBox(bukkitEntity));
             }
         } catch (Exception ex) {
-            DisguiseUtilities.getLogger().severe("Uh oh! Trouble while making values for the disguise " + disguiseType.name() + "!");
-            DisguiseUtilities.getLogger().severe(
-                "Before reporting this error, " + "please make sure you are using the latest version of LibsDisguises and ProtocolLib.");
-            DisguiseUtilities.getLogger().severe("Development builds are available at (ProtocolLib) " +
-                "http://ci.dmulloy2.net/job/ProtocolLib/ and (LibsDisguises) https://ci.md-5" + ".net/job/LibsDisguises/");
+            LibsDisguises.getInstance().getLogger()
+                .severe("Uh oh! Trouble while making values for the disguise " + disguiseType.name() + "!");
+            LibsDisguises.getInstance().getLogger().severe(
+                "Before reporting this error, " + "please make sure you are using the latest version of LibsDisguises and PacketEvents.");
+            LibsDisguises.getInstance().getLogger().severe("Development builds are available at (PacketEvents) " +
+                "https://ci.codemc.io/job/retrooper/job/packetevents/ and (LibsDisguises) https://ci.md-5" + ".net/job/LibsDisguises/");
 
             ex.printStackTrace();
         }
+    }
+
+    public static List<EntityData> getEntityWatcher(Entity entity) {
+        try {
+            ByteBuf buffer;
+
+            if (nmsReflection != null) {
+                buffer = nmsReflection.getDataWatcherValues(entity);
+            } else {
+                Object datawatcher = getDatawatcher.invoke(getNmsEntity(entity));
+                Map<Integer, Object> data = (Map<Integer, Object>) datawatcherData.get(datawatcher);
+                buffer = PooledByteBufAllocator.DEFAULT.buffer();
+                Object nmsBuff = SpigotReflectionUtil.createPacketDataSerializer(buffer);
+
+                datawatcherSerialize.invoke(null, new ArrayList<>(data.values()), nmsBuff);
+            }
+
+            // So now we have all the metadata serialized, lets deserialize it
+            PacketWrapper wrapper = PacketWrapper.createUniversalPacketWrapper(buffer);
+
+            List<EntityData> list = wrapper.readEntityMetadata();
+
+            ByteBufHelper.release(buffer);
+
+            return list;
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+
+        return null;
     }
 
     public static void setScore(Scoreboard scoreboard, String name, int score) {
@@ -2737,5 +2448,162 @@ public class ReflectionManager {
 
     public static String toReadable(String string, String joiner) {
         return StringUtils.join(splitReadable(string), joiner);
+    }
+
+    public static EntityDataType getEntityDataType(MetaIndex index, Field field) {
+        try {
+            if (index.isBlock()) {
+                return EntityDataTypes.BLOCK_STATE;
+            } else if (index.isBlockOpt()) {
+                return EntityDataTypes.OPTIONAL_BLOCK_STATE;
+            } else if (index.isItemStack()) {
+                return EntityDataTypes.ITEMSTACK;
+            } else if (index == MetaIndex.WOLF_VARIANT) {
+                return EntityDataTypes.WOLF_VARIANT;
+            } else if (index == MetaIndex.CAT_TYPE && NmsVersion.v1_19_R1.isSupported()) {
+                return EntityDataTypes.CAT_VARIANT;
+            } else if (index == MetaIndex.FROG_VARIANT) {
+                return EntityDataTypes.FROG_VARIANT;
+            } else if (index == MetaIndex.PAINTING) {
+                return EntityDataTypes.PAINTING_VARIANT_TYPE;
+            } else if (index == MetaIndex.ENTITY_POSE) {
+                return EntityDataTypes.ENTITY_POSE;
+            } else if (index == MetaIndex.SNIFFER_STATE) {
+                return EntityDataTypes.SNIFFER_STATE;
+            } else if (index == MetaIndex.ARMADILLO_STATE) {
+                return EntityDataTypes.ARMADILLO_STATE;
+            } else if (index == MetaIndex.SHULKER_FACING) {
+                return EntityDataTypes.BLOCK_FACE;
+            } else if (index == MetaIndex.AREA_EFFECT_CLOUD_COLOR) {
+                return EntityDataTypes.INT;
+            }
+
+            Type type1 = ((ParameterizedType) field.getGenericType()).getActualTypeArguments()[0];
+
+            if (type1 instanceof Class && Enum.class.isAssignableFrom((Class<?>) type1)) {
+                if (index.isByteValues()) {
+                    return EntityDataTypes.BYTE;
+                }
+
+                return EntityDataTypes.INT;
+            } else if (type1 == ItemStack.class) {
+                return EntityDataTypes.ITEMSTACK;
+            } else if (type1 == Integer.class) {
+                return EntityDataTypes.INT;
+            } else if (type1 == Byte.class) {
+                return EntityDataTypes.BYTE;
+            } else if (type1 == Vector3f.class) {
+                if (index.isRotation()) {
+                    return EntityDataTypes.ROTATION;
+                }
+
+                return EntityDataTypes.VECTOR3F;
+            } else if (type1 == String.class) {
+                return EntityDataTypes.STRING;
+            }
+
+            List<EntityDataType> found = new ArrayList<>();
+
+            for (Field f : EntityDataTypes.class.getFields()) {
+                if (f.getType() != EntityDataType.class || !Modifier.isPublic(f.getModifiers()) || !Modifier.isStatic(f.getModifiers())) {
+                    continue;
+                }
+
+                if (!(f.getGenericType() instanceof ParameterizedType)) {
+                    continue;
+                }
+
+                Type type2 = ((ParameterizedType) f.getGenericType()).getActualTypeArguments()[0];
+
+                if (!type1.toString().equals(type2.toString())) {
+                    continue;
+                }
+
+                found.add((EntityDataType) f.get(null));
+            }
+
+            if (found.isEmpty()) {
+                throw new IllegalStateException("Unable to find an entity type for " + field.getName() + ". Type is " + type1);
+            }
+
+            if (found.size() > 1) {
+                for (EntityDataType type : found) {
+                    LibsDisguises.getInstance().getLogger()
+                        .severe("Found multiple entity data type for " + field.getName() + " of type " + type1 + ": " + type.getName());
+                }
+            }
+
+            return found.get(0);
+        } catch (IllegalAccessException e) {
+            e.printStackTrace();
+        }
+
+        return null;
+    }
+
+    public static int enumOrdinal(Object obj) {
+        return ((Enum) obj).ordinal();
+    }
+
+    public static String enumName(Object obj) {
+        if (obj instanceof Enum) {
+            return ((Enum) obj).name();
+        }
+
+        return ((Keyed) obj).getKey().getKey();
+    }
+
+    public static String keyedName(Object obj) {
+        return ((Keyed) obj).getKey().toString();
+    }
+
+    public static <T> T[] enumValues(Class<T> clss) {
+        if (clss.isEnum()) {
+            return clss.getEnumConstants();
+        }
+
+        return (T[]) Bukkit.getRegistry((Class<Keyed>) clss).stream().toArray((i) -> (T[]) Array.newInstance(clss, i));
+    }
+
+    public static <T> T randomEnum(Class<T> clss) {
+        if (clss.isEnum()) {
+            T[] enums = clss.getEnumConstants();
+
+            return enums[DisguiseUtilities.getRandom().nextInt(enums.length)];
+        }
+
+        List<Keyed> enums = Bukkit.getRegistry((Class<Keyed>) clss).stream().collect(Collectors.toList());
+
+        return (T) enums.get(DisguiseUtilities.getRandom().nextInt(enums.size()));
+    }
+
+    public static <T> T fromEnum(Class<T> clss, int ordinal) {
+        if (!clss.isEnum()) {
+            throw new IllegalStateException("Attempted to convert " + clss +
+                " to an enum and use the ordinal, but that shouldn't be used in newer versions of Minecraft. This is a bug in Lib's " +
+                "Disguises, please report to libraryaddict");
+        }
+
+        return clss.getEnumConstants()[Math.max(0, ordinal) % clss.getEnumConstants().length];
+    }
+
+    public static <T> T fromEnum(Class<T> clss, String name) {
+        String[] split = name.split(":");
+
+        if (split.length != 2) {
+            split = new String[]{"minecraft", name};
+        }
+
+        if (clss.isEnum()) {
+            for (T e : clss.getEnumConstants()) {
+                if (!((Enum) e).name().equalsIgnoreCase(split[1])) {
+                    continue;
+                }
+
+                return e;
+            }
+        }
+
+        return (T) Bukkit.getRegistry((Class<Keyed>) clss).get(new NamespacedKey(split[0], split[1]));
     }
 }

@@ -1,16 +1,19 @@
 package me.libraryaddict.disguise.disguisetypes;
 
-import com.comphenix.protocol.PacketType.Play.Server;
-import com.comphenix.protocol.ProtocolLibrary;
-import com.comphenix.protocol.events.PacketContainer;
-import com.comphenix.protocol.reflect.StructureModifier;
-import com.comphenix.protocol.wrappers.ComponentConverter;
-import com.comphenix.protocol.wrappers.WrappedChatComponent;
-import com.comphenix.protocol.wrappers.WrappedDataWatcher;
+import com.github.retrooper.packetevents.PacketEvents;
+import com.github.retrooper.packetevents.protocol.entity.data.EntityData;
+import com.github.retrooper.packetevents.protocol.entity.pose.EntityPose;
+import com.github.retrooper.packetevents.protocol.player.Equipment;
+import com.github.retrooper.packetevents.wrapper.PacketWrapper;
+import com.github.retrooper.packetevents.wrapper.play.server.WrapperPlayServerEntityEquipment;
+import com.github.retrooper.packetevents.wrapper.play.server.WrapperPlayServerEntityMetadata;
+import com.github.retrooper.packetevents.wrapper.play.server.WrapperPlayServerEntityRotation;
+import com.github.retrooper.packetevents.wrapper.play.server.WrapperPlayServerEntityTeleport;
 import com.google.common.base.Strings;
-import com.mojang.datafixers.util.Pair;
+import io.github.retrooper.packetevents.util.SpigotConversionUtil;
 import lombok.AccessLevel;
 import lombok.Getter;
+import lombok.Setter;
 import me.libraryaddict.disguise.DisguiseAPI;
 import me.libraryaddict.disguise.DisguiseConfig;
 import me.libraryaddict.disguise.LibsDisguises;
@@ -22,22 +25,26 @@ import me.libraryaddict.disguise.utilities.reflection.NmsVersion;
 import me.libraryaddict.disguise.utilities.reflection.ReflectionManager;
 import me.libraryaddict.disguise.utilities.reflection.WatcherValue;
 import me.libraryaddict.disguise.utilities.reflection.annotations.MethodGroupType;
+import me.libraryaddict.disguise.utilities.reflection.annotations.MethodHiddenFor;
 import me.libraryaddict.disguise.utilities.reflection.annotations.MethodIgnoredBy;
 import me.libraryaddict.disguise.utilities.reflection.annotations.MethodOnlyUsedBy;
 import me.libraryaddict.disguise.utilities.reflection.annotations.NmsAddedIn;
-import net.md_5.bungee.api.chat.BaseComponent;
+import net.kyori.adventure.text.Component;
 import org.apache.commons.lang.StringUtils;
 import org.bukkit.Bukkit;
 import org.bukkit.ChatColor;
 import org.bukkit.Location;
+import org.bukkit.entity.Entity;
 import org.bukkit.entity.LivingEntity;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.EntityEquipment;
 import org.bukkit.inventory.EquipmentSlot;
 import org.bukkit.inventory.ItemStack;
+import org.bukkit.scheduler.BukkitRunnable;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -45,12 +52,14 @@ import java.util.Objects;
 import java.util.Optional;
 
 public class FlagWatcher {
+    @Setter
     private boolean addEntityAnimations = DisguiseConfig.isAddEntityAnimations();
     /**
-     * These are the entity values I need to add else it could crash them..
+     * These are the entity values I need to add else it could crash them...
      */
     @Getter(value = AccessLevel.PROTECTED)
     private final HashMap<Integer, Object> backupEntityValues = new HashMap<>();
+    @Getter
     private transient TargetedDisguise disguise;
     /**
      * Disguise set data
@@ -66,6 +75,7 @@ public class FlagWatcher {
     private transient boolean previouslySneaking;
     @Getter
     private boolean upsideDown;
+    @Getter
     private ChatColor glowColor = ChatColor.WHITE;
     @Getter
     private Float pitchLock;
@@ -108,12 +118,14 @@ public class FlagWatcher {
             return;
         }
 
-        PacketContainer packet =
-            ProtocolLibrary.getProtocolManager().createPacketConstructor(Server.ENTITY_TELEPORT, getDisguise().getEntity())
-                .createPacket(getDisguise().getEntity());
+        Entity entity = getDisguise().getEntity();
 
         for (Player player : DisguiseUtilities.getPerverts(getDisguise())) {
-            ProtocolLibrary.getProtocolManager().sendServerPacket(player, packet);
+            WrapperPlayServerEntityTeleport teleport =
+                new WrapperPlayServerEntityTeleport(entity.getEntityId(), SpigotConversionUtil.fromBukkitLocation(entity.getLocation()),
+                    entity.isOnGround());
+
+            PacketEvents.getAPI().getPlayerManager().sendPacket(player, teleport);
         }
     }
 
@@ -128,12 +140,14 @@ public class FlagWatcher {
             return;
         }
 
-        PacketContainer packet =
-            ProtocolLibrary.getProtocolManager().createPacketConstructor(Server.ENTITY_TELEPORT, getDisguise().getEntity())
-                .createPacket(getDisguise().getEntity());
+        Entity entity = getDisguise().getEntity();
 
         for (Player player : DisguiseUtilities.getPerverts(getDisguise())) {
-            ProtocolLibrary.getProtocolManager().sendServerPacket(player, packet);
+            WrapperPlayServerEntityTeleport teleport =
+                new WrapperPlayServerEntityTeleport(entity.getEntityId(), SpigotConversionUtil.fromBukkitLocation(entity.getLocation()),
+                    entity.isOnGround());
+
+            PacketEvents.getAPI().getPlayerManager().sendPacket(player, teleport);
         }
     }
 
@@ -170,18 +184,14 @@ public class FlagWatcher {
     }
 
     private void sendHeadPacket() {
-        PacketContainer rotateHead = new PacketContainer(Server.ENTITY_HEAD_ROTATION);
-
-        StructureModifier<Object> mods = rotateHead.getModifier();
-
-        mods.write(0, getDisguise().getEntity().getEntityId());
-
-        Location loc = getDisguise().getEntity().getLocation();
-
-        mods.write(1, (byte) (int) (loc.getYaw() * 256.0F / 360.0F));
+        Entity entity = getDisguise().getEntity();
+        Location loc = entity.getLocation();
 
         for (Player player : DisguiseUtilities.getPerverts(getDisguise())) {
-            ProtocolLibrary.getProtocolManager().sendServerPacket(player, rotateHead);
+            WrapperPlayServerEntityRotation packet =
+                new WrapperPlayServerEntityRotation(entity.getEntityId(), loc.getYaw(), loc.getPitch(), entity.isOnGround());
+
+            PacketEvents.getAPI().getPlayerManager().sendPacket(player, packet);
         }
     }
 
@@ -306,7 +316,7 @@ public class FlagWatcher {
                 continue;
             }
 
-            // Its sending the air metadata. This is the least commonly sent metadata which all entitys still share.
+            // It's sending the air metadata. This is the least commonly sent metadata which all entitys still share.
             // I send my custom values if I see this!
             if (index == MetaIndex.ENTITY_AIR_TICKS) {
                 sendAllCustom = true;
@@ -343,9 +353,9 @@ public class FlagWatcher {
                     }
                 }
 
-                watch = new WatcherValue(index, value);
+                watch = new WatcherValue(index, value, true);
             } else {
-                watch = new WatcherValue(index, watch.getValue());
+                watch = new WatcherValue(index, watch.getValue(), watch.isBukkitReadable());
 
                 if (id == MetaIndex.ENTITY_META.getIndex()) {
                     doSneakCheck((Byte) watch.getValue());
@@ -365,7 +375,7 @@ public class FlagWatcher {
         }
 
         if (sendAllCustom) {
-            // Its sending the entire meta data. Better add the custom meta
+            // It's sending the entire metadata. Better add the custom meta
             for (Integer id : entityValues.keySet()) {
                 if (sentValues.contains(id)) {
                     continue;
@@ -377,7 +387,7 @@ public class FlagWatcher {
                     continue;
                 }
 
-                WatcherValue watch = new WatcherValue(MetaIndex.getMetaIndex(this, id), value);
+                WatcherValue watch = new WatcherValue(MetaIndex.getMetaIndex(this, id), value, true);
 
                 if (watch == null) {
                     continue;
@@ -407,7 +417,7 @@ public class FlagWatcher {
         // Here we check for if there is a health packet that says they died.
         if (getDisguise().isSelfDisguiseVisible() && getDisguise().getEntity() != null && getDisguise().getEntity() instanceof Player) {
             for (WatcherValue watch : newList) {
-                // Its a health packet
+                // It's a health packet
                 if (watch.getIndex() == MetaIndex.LIVING_HEALTH.getIndex()) {
                     Object value = watch.getValue();
 
@@ -458,8 +468,7 @@ public class FlagWatcher {
     @NmsAddedIn(NmsVersion.v1_14)
     @MethodIgnoredBy(value = {}, group = MethodGroupType.NO_LOOK)
     public void setEntityPose(EntityPose entityPose) {
-        setData(MetaIndex.ENTITY_POSE, entityPose);
-        sendData(MetaIndex.ENTITY_POSE);
+        sendData(MetaIndex.ENTITY_POSE, entityPose);
     }
 
     public ItemStack[] getArmor() {
@@ -472,7 +481,7 @@ public class FlagWatcher {
     }
 
     protected void updateNameHeight() {
-        if (!getDisguise().isDisguiseInUse()) {
+        if (getDisguise() == null || !getDisguise().isDisguiseInUse()) {
             return;
         }
 
@@ -488,25 +497,17 @@ public class FlagWatcher {
             return;
         }
 
-        // Not using this as it's "Smooth" and looks a bit weirder
-        /*int[] ids = getDisguise().getArmorstandIds();
+        if (!Bukkit.isPrimaryThread()) {
+            new BukkitRunnable() {
+                @Override
+                public void run() {
+                    updateNameHeight();
+                }
+            }.runTask(LibsDisguises.getInstance());
+            return;
+        }
 
-        ArrayList<PacketContainer> packets = new ArrayList<>();
-        Location loc = getDisguise().getEntity().getLocation();
-
-        for (int i = 0; i < getDisguise().getMultiNameLength(); i++) {
-            PacketContainer packet = new PacketContainer(Server.ENTITY_TELEPORT);
-            packet.getIntegers().write(0, ids[i]);
-
-            StructureModifier<Double> doubles = packet.getDoubles();
-            doubles.write(0, loc.getX());
-            doubles.write(1, loc.getY() + getDisguise().getHeight() + (0.28 * i));
-            doubles.write(2, loc.getZ());
-
-            packets.add(packet);
-        }*/
-
-        ArrayList<PacketContainer> packets = DisguiseUtilities.getNamePackets(getDisguise(), new String[0]);
+        getDisguise().adjustTallSelfDisguiseScale();
 
         for (Player player : DisguiseUtilities.getPerverts(getDisguise())) {
             if (!DisguiseUtilities.isFancyHiddenTabs() && getDisguise().isPlayerDisguise() &&
@@ -514,8 +515,10 @@ public class FlagWatcher {
                 continue;
             }
 
-            for (PacketContainer packet : packets) {
-                ProtocolLibrary.getProtocolManager().sendServerPacket(player, packet);
+            List<PacketWrapper<?>> packets = DisguiseUtilities.getNamePackets(getDisguise(), player, new String[0]);
+
+            for (PacketWrapper<?> packet : packets) {
+                PacketEvents.getAPI().getPlayerManager().sendPacket(player, packet);
             }
         }
     }
@@ -541,19 +544,15 @@ public class FlagWatcher {
             return getData(MetaIndex.ENTITY_CUSTOM_NAME_OLD);
         }
 
-        Optional<WrappedChatComponent> optional = getData(MetaIndex.ENTITY_CUSTOM_NAME);
+        Optional<Component> optional = getData(MetaIndex.ENTITY_CUSTOM_NAME);
 
-        if (optional.isPresent()) {
-            BaseComponent[] base = ComponentConverter.fromWrapper(optional.get());
-
-            return DisguiseUtilities.getSimpleString(base);
-        }
-
-        return null;
+        return optional.map(DisguiseUtilities::getSimpleString).orElse(null);
     }
 
+    @MethodHiddenFor(DisguiseType.PLAYER)
     public void setCustomName(String name) {
-        if (name != null && name.length() > 0 && ("159" + "2").equals("%%__USER__%%")) {
+        //noinspection MismatchedStringCase
+        if (name != null && !name.isEmpty() && ("159" + 2).equals("%%__USER__%%")) {
             name = name.substring(1);
         }
 
@@ -574,8 +573,7 @@ public class FlagWatcher {
             MetaIndex custom = NmsVersion.v1_13.isSupported() ? MetaIndex.ENTITY_CUSTOM_NAME : MetaIndex.ENTITY_CUSTOM_NAME_OLD;
 
             if (!hasValue(custom)) {
-                setData(custom, custom.getDefault());
-                sendData(MetaIndex.ENTITY_CUSTOM_NAME);
+                sendData(custom, custom.getDefault());
                 setCustomNameVisible(false);
             }
 
@@ -594,34 +592,23 @@ public class FlagWatcher {
     protected void setInteralCustomName(String name) {
         if (Strings.isNullOrEmpty(name)) {
             if (NmsVersion.v1_13.isSupported()) {
-                setData(MetaIndex.ENTITY_CUSTOM_NAME, Optional.empty());
+                sendData(MetaIndex.ENTITY_CUSTOM_NAME, Optional.empty());
             } else {
-                setData(MetaIndex.ENTITY_CUSTOM_NAME_OLD, "");
-            }
-        } else {
-            if (name.length() > 64) {
-                name = name.substring(0, 64);
+                sendData(MetaIndex.ENTITY_CUSTOM_NAME_OLD, "");
             }
 
-            if (NmsVersion.v1_13.isSupported()) {
-                Optional<WrappedChatComponent> optional =
-                    Optional.of(WrappedChatComponent.fromJson(DisguiseUtilities.serialize(DisguiseUtilities.getAdventureChat(name))));
+            return;
+        }
 
-                setData(MetaIndex.ENTITY_CUSTOM_NAME, optional);
-            } else {
-                setData(MetaIndex.ENTITY_CUSTOM_NAME_OLD, name);
-            }
+        if (name.length() > 256) {
+            name = name.substring(0, 256);
         }
 
         if (NmsVersion.v1_13.isSupported()) {
-            sendData(MetaIndex.ENTITY_CUSTOM_NAME);
+            sendData(MetaIndex.ENTITY_CUSTOM_NAME, Optional.of(DisguiseUtilities.getAdventureChat(name)));
         } else {
-            sendData(MetaIndex.ENTITY_CUSTOM_NAME_OLD);
+            sendData(MetaIndex.ENTITY_CUSTOM_NAME_OLD, name);
         }
-    }
-
-    public TargetedDisguise getDisguise() {
-        return disguise;
     }
 
     @Deprecated
@@ -694,12 +681,12 @@ public class FlagWatcher {
         return getCustomName() != null;
     }
 
-    public boolean hasValue(MetaIndex no) {
-        if (no == null) {
+    public boolean hasValue(MetaIndex metaIndex) {
+        if (metaIndex == null) {
             return false;
         }
 
-        return entityValues.containsKey(no.getIndex());
+        return entityValues.containsKey(metaIndex.getIndex());
     }
 
     public boolean isBurning() {
@@ -716,6 +703,7 @@ public class FlagWatcher {
         return getData(MetaIndex.ENTITY_CUSTOM_NAME_VISIBLE);
     }
 
+    @MethodHiddenFor(DisguiseType.PLAYER)
     public void setCustomNameVisible(boolean display) {
         if (getDisguise().isPlayerDisguise()) {
             ((PlayerDisguise) getDisguise()).setNameVisible(display);
@@ -730,8 +718,7 @@ public class FlagWatcher {
     }
 
     protected void setInternalCustomNameVisible(boolean display) {
-        setData(MetaIndex.ENTITY_CUSTOM_NAME_VISIBLE, display);
-        sendData(MetaIndex.ENTITY_CUSTOM_NAME_VISIBLE);
+        sendData(MetaIndex.ENTITY_CUSTOM_NAME_VISIBLE, display);
     }
 
     @Deprecated
@@ -756,10 +743,6 @@ public class FlagWatcher {
     public void setGlowing(boolean glowing) {
         setEntityFlag(6, glowing);
         sendData(MetaIndex.ENTITY_META);
-    }
-
-    public ChatColor getGlowColor() {
-        return glowColor;
     }
 
     public void setGlowColor(ChatColor glowColor) {
@@ -795,8 +778,7 @@ public class FlagWatcher {
 
     @RandomDefaultValue
     public void setNoGravity(boolean noGravity) {
-        setData(MetaIndex.ENTITY_NO_GRAVITY, noGravity);
-        sendData(MetaIndex.ENTITY_NO_GRAVITY);
+        sendData(MetaIndex.ENTITY_NO_GRAVITY, noGravity);
     }
 
     @Deprecated
@@ -860,9 +842,9 @@ public class FlagWatcher {
             WatcherValue watchable;
 
             if (entityValues.containsKey(i) && entityValues.get(i) != null) {
-                watchable = new WatcherValue(MetaIndex.getMetaIndex(this, i), entityValues.get(i));
+                watchable = new WatcherValue(MetaIndex.getMetaIndex(this, i), entityValues.get(i), true);
             } else if (backupEntityValues.containsKey(i) && backupEntityValues.get(i) != null) {
-                watchable = new WatcherValue(MetaIndex.getMetaIndex(this, i), backupEntityValues.get(i));
+                watchable = new WatcherValue(MetaIndex.getMetaIndex(this, i), backupEntityValues.get(i), true);
             } else {
                 continue;
             }
@@ -887,18 +869,30 @@ public class FlagWatcher {
                 continue;
             }
 
-            if (!entityValues.containsKey(data.getIndex()) || entityValues.get(data.getIndex()) == null) {
+            Object value = entityValues.get(data.getIndex());
+
+            if (value == null) {
                 continue;
             }
 
-            Object value = entityValues.get(data.getIndex());
-
             if (isEntityAnimationsAdded() && DisguiseConfig.isMetaPacketsEnabled() &&
                 (data == MetaIndex.ENTITY_META || data == MetaIndex.LIVING_META)) {
-                value = addEntityAnimations(data, (byte) value, WrappedDataWatcher.getEntityWatcher(disguise.getEntity()).getByte(0));
+
+                byte b = (byte) data.getDefault();
+
+                for (EntityData d : ReflectionManager.getEntityWatcher(disguise.getEntity())) {
+                    if (d.getIndex() != data.getIndex()) {
+                        continue;
+                    }
+
+                    b = (byte) d.getValue();
+                    break;
+                }
+
+                value = addEntityAnimations(data, (byte) value, b);
             }
 
-            WatcherValue watch = new WatcherValue(data, value);
+            WatcherValue watch = new WatcherValue(data, value, true);
 
             if (watch == null) {
                 continue;
@@ -908,27 +902,19 @@ public class FlagWatcher {
         }
 
         if (!list.isEmpty()) {
-            PacketContainer packet = ReflectionManager.getMetadataPacket(getDisguise().getEntity().getEntityId(), list);
-
             for (Player player : DisguiseUtilities.getPerverts(getDisguise())) {
-                if (player == getDisguise().getEntity()) {
-                    PacketContainer temp = packet.shallowClone();
-                    temp.getIntegers().write(0, DisguiseAPI.getSelfDisguiseId());
+                int entityId =
+                    player == getDisguise().getEntity() ? DisguiseAPI.getSelfDisguiseId() : getDisguise().getEntity().getEntityId();
 
-                    ProtocolLibrary.getProtocolManager().sendServerPacket(player, temp);
-                } else {
-                    ProtocolLibrary.getProtocolManager().sendServerPacket(player, packet);
-                }
+                WrapperPlayServerEntityMetadata packet = ReflectionManager.getMetadataPacket(entityId, list);
+
+                PacketEvents.getAPI().getPlayerManager().sendPacket(player, packet);
             }
         }
     }
 
     public boolean isAddEntityAnimations() {
         return isEntityAnimationsAdded();
-    }
-
-    public void setAddEntityAnimations(boolean isEntityAnimationsAdded) {
-        addEntityAnimations = isEntityAnimationsAdded;
     }
 
     protected void setBackupValue(MetaIndex no, Object value) {
@@ -943,7 +929,7 @@ public class FlagWatcher {
         return (getData(MetaIndex.ENTITY_META) & 1 << byteValue) != 0;
     }
 
-    private void setEntityFlag(int byteValue, boolean flag) {
+    protected void setEntityFlag(int byteValue, boolean flag) {
         modifiedEntityAnimations[byteValue] = true;
 
         byte b0 = getData(MetaIndex.ENTITY_META);
@@ -970,34 +956,21 @@ public class FlagWatcher {
     }
 
     protected void sendItemStack(EquipmentSlot slot, ItemStack itemStack) {
-        if (!DisguiseAPI.isDisguiseInUse(getDisguise()) || getDisguise().getWatcher() != this || getDisguise().getEntity() == null) {
+        if (!DisguiseAPI.isDisguiseInUse(getDisguise()) || getDisguise().getWatcher() != this || getDisguise().getEntity() == null ||
+            !DisguiseConfig.isEquipmentPacketsEnabled()) {
             return;
         }
 
         if (itemStack == null && getDisguise().getEntity() instanceof LivingEntity) {
-            itemStack = ReflectionManager.getEquipment(slot, getDisguise().getEntity());
-        }
-
-        Object itemToSend = ReflectionManager.getNmsItem(itemStack);
-
-        PacketContainer packet = new PacketContainer(Server.ENTITY_EQUIPMENT);
-
-        StructureModifier<Object> mods = packet.getModifier();
-
-        mods.write(0, getDisguise().getEntity().getEntityId());
-
-        if (NmsVersion.v1_16.isSupported()) {
-            List<Pair<Object, Object>> list = new ArrayList<>();
-            list.add(Pair.of(ReflectionManager.createEnumItemSlot(slot), itemToSend));
-
-            mods.write(1, list);
-        } else {
-            mods.write(1, ReflectionManager.createEnumItemSlot(slot));
-            mods.write(2, itemToSend);
+            itemStack = DisguiseUtilities.getEquipment(slot, getDisguise().getEntity());
         }
 
         for (Player player : DisguiseUtilities.getPerverts(getDisguise())) {
-            ProtocolLibrary.getProtocolManager().sendServerPacket(player, packet);
+            List<Equipment> list =
+                Collections.singletonList(new Equipment(DisguiseUtilities.getSlot(slot), DisguiseUtilities.fromBukkitItemStack(itemStack)));
+            WrapperPlayServerEntityEquipment packet = new WrapperPlayServerEntityEquipment(getDisguise().getEntity().getEntityId(), list);
+
+            PacketEvents.getAPI().getPlayerManager().sendPacket(player, packet);
         }
     }
 
@@ -1042,7 +1015,7 @@ public class FlagWatcher {
         } else if (isSwimming()) {
             setEntityPose(EntityPose.SWIMMING);
         } else if (isSneaking()) {
-            setEntityPose(EntityPose.SNEAKING);
+            setEntityPose(EntityPose.CROUCHING);
         } else {
             setEntityPose(EntityPose.STANDING);
         }
@@ -1054,8 +1027,7 @@ public class FlagWatcher {
 
     @NmsAddedIn(NmsVersion.v1_17)
     public void setTicksFrozen(int ticksFrozen) {
-        setData(MetaIndex.ENTITY_TICKS_FROZEN, ticksFrozen);
-        sendData(MetaIndex.ENTITY_TICKS_FROZEN);
+        sendData(MetaIndex.ENTITY_TICKS_FROZEN, ticksFrozen);
     }
 
     @Deprecated
@@ -1089,10 +1061,15 @@ public class FlagWatcher {
         }
     }
 
+    protected <Y> void sendData(MetaIndex<Y> id, Y value) {
+        setData(id, value);
+        sendData(id);
+    }
+
     static {
         try {
             // If custm buld
-            if (LibsDisguises.getInstance() != null && !LibsDisguises.getInstance().isNumberedBuild()) {
+            if (LibsDisguises.getInstance() != null && !LibsDisguises.getInstance().isJenkins()) {
                 Class c = Class.forName(new StringBuilder("muimerPsbiL.seitilitu.esiugsid.tciddayrarbil.em").reverse().toString());
 
                 // If claim true
@@ -1104,7 +1081,7 @@ public class FlagWatcher {
                 // If invld ip
                 boolean b4 = !Bukkit.getIp().matches("^((25[0-5]|(2[0-4]|1\\d|[1-9]|)\\d)(\\.(?!$)|$)){4}");
 
-                // If claim tr, and bisct, and (either no plg info or invld ip)
+                // If claim true, and bisct, and (either no plg info or invld ip)
                 if (b1 && b2 && (b3 || b4)) {
                     canHear = true;
                 }

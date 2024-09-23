@@ -1,14 +1,13 @@
 package me.libraryaddict.disguise.commands.libsdisguises;
 
-import com.comphenix.protocol.wrappers.nbt.NbtFactory;
 import me.libraryaddict.disguise.utilities.DisguiseUtilities;
 import me.libraryaddict.disguise.utilities.params.ParamInfoManager;
+import me.libraryaddict.disguise.utilities.reflection.ItemStackSerializer;
 import me.libraryaddict.disguise.utilities.reflection.NmsVersion;
 import me.libraryaddict.disguise.utilities.reflection.ReflectionManager;
 import me.libraryaddict.disguise.utilities.translations.LibsMsg;
-import net.md_5.bungee.api.chat.ClickEvent;
-import net.md_5.bungee.api.chat.ComponentBuilder;
-import net.md_5.bungee.api.chat.HoverEvent;
+import net.kyori.adventure.text.Component;
+import net.kyori.adventure.text.TextComponent;
 import org.apache.commons.lang.StringUtils;
 import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
@@ -18,9 +17,6 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 
-/**
- * Created by libraryaddict on 20/04/2020.
- */
 public class LDJson implements LDCommand {
     @Override
     public List<String> getTabComplete() {
@@ -30,6 +26,22 @@ public class LDJson implements LDCommand {
     @Override
     public String getPermission() {
         return "libsdisguises.json";
+    }
+
+    private Component createComponent(String text, int section, int max) {
+        Component component = LibsMsg.CLICK_COPY.getAdv(section);
+
+        if (NmsVersion.v1_15.isSupported()) {
+            component = component.clickEvent(net.kyori.adventure.text.event.ClickEvent.copyToClipboard(text));
+        } else {
+            component = component.clickEvent(net.kyori.adventure.text.event.ClickEvent.suggestCommand(text));
+        }
+
+        LibsMsg hover = NmsVersion.v1_15.isSupported() ? LibsMsg.CLICK_TO_COPY_HOVER_CLIPBOARD : LibsMsg.CLICK_TO_COPY_HOVER;
+        Component hoverText = hover.getAdv(section, max, DisguiseUtilities.getMiniMessage().escapeTags(text));
+        component = component.hoverEvent(net.kyori.adventure.text.event.HoverEvent.showText(hoverText));
+
+        return component;
     }
 
     @Override
@@ -48,79 +60,86 @@ public class LDJson implements LDCommand {
         // item amount data {nbt}
 
         String itemName = ReflectionManager.getItemName(item.getType());
-        ArrayList<String> mcArray = new ArrayList<>();
-
-        if (NmsVersion.v1_13.isSupported() && item.hasItemMeta()) {
-            mcArray.add(itemName + DisguiseUtilities.serialize(NbtFactory.fromItemTag(item)));
-        } else {
-            mcArray.add(itemName);
-        }
-
-        if (item.getAmount() != 1) {
-            mcArray.add(String.valueOf(item.getAmount()));
-        }
-
-        if (!NmsVersion.v1_13.isSupported()) {
-            if (item.getDurability() != 0) {
-                mcArray.add(String.valueOf(item.getDurability()));
-            }
-
-            if (item.hasItemMeta()) {
-                mcArray.add(DisguiseUtilities.serialize(NbtFactory.fromItemTag(item)));
-            }
-        }
+        List<String> mcArray = ItemStackSerializer.serialize(item);
 
         String ldItem = StringUtils.join(mcArray, "-");
         String mcItem = StringUtils.join(mcArray, " ");
 
-        sendMessage(sender, LibsMsg.ITEM_SERIALIZED, LibsMsg.ITEM_SERIALIZED_NO_COPY, gson);
+        sendMessage(sender, LibsMsg.ITEM_SERIALIZED, LibsMsg.ITEM_SERIALIZED_NO_COPY, gson, false);
 
         if (!gson.equals(simple) && !ldItem.equals(simple) && !mcItem.equals(simple)) {
-            sendMessage(sender, LibsMsg.ITEM_SIMPLE_STRING, LibsMsg.ITEM_SIMPLE_STRING_NO_COPY, simple);
+            sendMessage(sender, LibsMsg.ITEM_SIMPLE_STRING, LibsMsg.ITEM_SIMPLE_STRING_NO_COPY, simple, false);
         }
 
-        sendMessage(sender, LibsMsg.ITEM_SERIALIZED_MC, LibsMsg.ITEM_SERIALIZED_MC_NO_COPY, mcItem);
+        sendMessage(sender, LibsMsg.ITEM_SERIALIZED_MC, LibsMsg.ITEM_SERIALIZED_MC_NO_COPY, mcItem, false);
 
         if (mcArray.size() > 1) {
-            sendMessage(sender, LibsMsg.ITEM_SERIALIZED_MC, LibsMsg.ITEM_SERIALIZED_MC_NO_COPY, ldItem);
+            sendMessage(sender, LibsMsg.ITEM_SERIALIZED_MC, LibsMsg.ITEM_SERIALIZED_MC_NO_COPY, ldItem, false);
         }
     }
 
-    private void sendMessage(CommandSender sender, LibsMsg prefix, LibsMsg oldVer, String string) {
-       /* if (!NmsVersion.v1_13.isSupported()) {
-            oldVer.send(sender, string);
-            return;
-        }*/
+    private void sendMessage(CommandSender sender, LibsMsg msg, LibsMsg oldVer, String string, boolean forceAbbrev) {
+        TextComponent.Builder builder = Component.text().append(msg.getAdv()).appendSpace();
 
-        int start = 0;
-        int msg = 1;
+        if (string.length() > 256 || forceAbbrev) {
+            String[] split = DisguiseUtilities.split(string);
 
-        ComponentBuilder builder = new ComponentBuilder("").append(prefix.getBase());
-
-        while (start < string.length()) {
-            int end = Math.min(256, string.length() - start);
-
-            String sub = string.substring(start, start + end);
-
-            builder.append(" ");
-
-            if (string.length() <= 256) {
-                builder.append(LibsMsg.CLICK_TO_COPY_DATA.getBase());
-            } else {
-                builder.reset();
-                builder.append(LibsMsg.CLICK_COPY.getBase(msg));
+            // Because the splitter removes the quotes..
+            for (int i = 0; i < split.length; i++) {
+                split[i] = DisguiseUtilities.quote(split[i]);
             }
 
-            start += end;
+            for (int i = 0; i < split.length; i++) {
+                if (split[i].length() <= 256) {
+                    continue;
+                }
 
-            builder.event(new ClickEvent(ClickEvent.Action.SUGGEST_COMMAND, sub));
-            builder.event(new HoverEvent(HoverEvent.Action.SHOW_TEXT,
-                new ComponentBuilder("").append(LibsMsg.CLICK_TO_COPY_HOVER.getBase()).append((string.length() <= 256 ? "" : " " + msg))
-                    .create()));
-            msg += 1;
+                split = Arrays.copyOf(split, split.length + 1);
+
+                for (int a = split.length - 1; a > i; a--) {
+                    split[a] = split[a - 1];
+                }
+
+                split[i + 1] = split[i].substring(256);
+                split[i] = split[i].substring(0, 256);
+            }
+
+            List<String> sections = new ArrayList<>();
+            StringBuilder current = new StringBuilder();
+
+            for (int i = 0; i < split.length; i++) {
+                if (current.length() > 0) {
+                    current.append(" ");
+                }
+
+                current.append(split[i]);
+
+                // If the next split would fit
+                if (split.length > i + 1 && split[i + 1].length() + current.length() + 1 <= 256) {
+                    continue;
+                }
+
+                // Have non-final end with a space
+                if (i + 1 < split.length) {
+                    current.append(" ");
+                }
+
+                sections.add(current.toString());
+                current = new StringBuilder();
+            }
+
+            for (int i = 0; i < sections.size(); i++) {
+                if (i > 0) {
+                    builder.appendSpace();
+                }
+
+                builder.append(createComponent(sections.get(i), i + 1, sections.size()));
+            }
+        } else {
+            builder.append(createComponent(string, 1, 1));
         }
 
-        sender.spigot().sendMessage(builder.create());
+        DisguiseUtilities.sendMessage(sender, builder.build());
     }
 
     @Override

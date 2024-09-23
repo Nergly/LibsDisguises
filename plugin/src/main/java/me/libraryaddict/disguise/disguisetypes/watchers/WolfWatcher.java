@@ -1,21 +1,30 @@
 package me.libraryaddict.disguise.disguisetypes.watchers;
 
+import me.libraryaddict.disguise.DisguiseConfig;
 import me.libraryaddict.disguise.disguisetypes.AnimalColor;
 import me.libraryaddict.disguise.disguisetypes.Disguise;
 import me.libraryaddict.disguise.disguisetypes.MetaIndex;
 import me.libraryaddict.disguise.utilities.reflection.NmsVersion;
+import me.libraryaddict.disguise.utilities.reflection.ReflectionManager;
 import me.libraryaddict.disguise.utilities.reflection.annotations.NmsAddedIn;
 import me.libraryaddict.disguise.utilities.reflection.annotations.NmsRemovedIn;
 import org.bukkit.DyeColor;
+import org.bukkit.entity.Wolf;
 
 public class WolfWatcher extends TameableWatcher {
 
     public WolfWatcher(Disguise disguise) {
         super(disguise);
+
+        if (DisguiseConfig.isRandomDisguises()) {
+            if (NmsVersion.v1_20_R4.isSupported()) {
+                setVariant(ReflectionManager.randomEnum(Wolf.Variant.class));
+            }
+        }
     }
 
     public DyeColor getCollarColor() {
-        return AnimalColor.getColorByWool(getData(MetaIndex.WOLF_COLLAR)).getDyeColor();
+        return getData(MetaIndex.WOLF_COLLAR).getDyeColor();
     }
 
     @Deprecated
@@ -28,12 +37,11 @@ public class WolfWatcher extends TameableWatcher {
             setTamed(true);
         }
 
-        if (newColor == getCollarColor()) {
+        if (hasValue(MetaIndex.WOLF_COLLAR) && newColor == getCollarColor()) {
             return;
         }
 
-        setData(MetaIndex.WOLF_COLLAR, (int) newColor.getWoolData());
-        sendData(MetaIndex.WOLF_COLLAR);
+        sendData(MetaIndex.WOLF_COLLAR, AnimalColor.getColorByWool(newColor.getWoolData()));
     }
 
     public boolean isBegging() {
@@ -41,8 +49,7 @@ public class WolfWatcher extends TameableWatcher {
     }
 
     public void setBegging(boolean begging) {
-        setData(MetaIndex.WOLF_BEGGING, begging);
-        sendData(MetaIndex.WOLF_BEGGING);
+        sendData(MetaIndex.WOLF_BEGGING, begging);
     }
 
     public boolean isAngry() {
@@ -67,8 +74,7 @@ public class WolfWatcher extends TameableWatcher {
 
     @NmsAddedIn(NmsVersion.v1_16)
     public void setAnger(int anger) {
-        setData(MetaIndex.WOLF_ANGER, anger);
-        sendData(MetaIndex.WOLF_ANGER);
+        sendData(MetaIndex.WOLF_ANGER, anger);
     }
 
     /**
@@ -90,7 +96,16 @@ public class WolfWatcher extends TameableWatcher {
     @Deprecated
     @NmsRemovedIn(NmsVersion.v1_15)
     public void setDamageTaken(float damage) {
-        setData(MetaIndex.WOLF_DAMAGE, damage);
-        sendData(MetaIndex.WOLF_DAMAGE);
+        sendData(MetaIndex.WOLF_DAMAGE, damage);
+    }
+
+    @NmsAddedIn(NmsVersion.v1_20_R4)
+    public void setVariant(Wolf.Variant variant) {
+        sendData(MetaIndex.WOLF_VARIANT, variant);
+    }
+
+    @NmsAddedIn(NmsVersion.v1_20_R4)
+    public Wolf.Variant getVariant() {
+        return getData(MetaIndex.WOLF_VARIANT);
     }
 }

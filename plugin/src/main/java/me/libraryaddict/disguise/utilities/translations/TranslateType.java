@@ -1,5 +1,7 @@
 package me.libraryaddict.disguise.utilities.translations;
 
+import lombok.AccessLevel;
+import lombok.Getter;
 import me.libraryaddict.disguise.DisguiseConfig;
 import me.libraryaddict.disguise.LibsDisguises;
 import me.libraryaddict.disguise.utilities.DisguiseUtilities;
@@ -24,18 +26,16 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 
-/**
- * Created by libraryaddict on 10/06/2017.
- */
 public enum TranslateType {
     DISGUISES("disguises"),
     MESSAGES("messages"),
     DISGUISE_OPTIONS("disguise_options"),
     DISGUISE_OPTIONS_PARAMETERS("disguise_option_parameters");
 
+    @Getter(AccessLevel.PRIVATE)
     private File file;
     private final LinkedHashMap<String, String> translated = new LinkedHashMap<>();
-    private final HashMap<String, Boolean> toDeDupe = new HashMap<>();
+    private final HashMap<String, Boolean[]> toDeDupe = new HashMap<>();
     private OutputStreamWriter writer;
     private int written;
 
@@ -55,7 +55,7 @@ public enum TranslateType {
         TranslateFiller.fillConfigs();
 
         if (!LibsPremium.isPremium() && DisguiseConfig.isUseTranslations()) {
-            DisguiseUtilities.getLogger().severe("You must purchase the plugin to use translations!");
+            LibsDisguises.getInstance().getLogger().severe("You must purchase the plugin to use translations!");
         }
     }
 
@@ -81,7 +81,7 @@ public enum TranslateType {
                 writer.close();
                 writer = null;
 
-                DisguiseUtilities.getLogger().info("Saved " + written + " translations that were not in " + getFile().getName());
+                LibsDisguises.getInstance().getLogger().info("Saved " + written + " translations that were not in " + getFile().getName());
             }
         } catch (IOException e) {
             e.printStackTrace();
@@ -94,7 +94,7 @@ public enum TranslateType {
         translated.clear();
 
         if (!getFile().exists()) {
-            DisguiseUtilities.getLogger().info("Translations for " + name() + " missing! Saving..");
+            LibsDisguises.getInstance().getLogger().info("Translations for " + name() + " missing! Saving..");
             return;
         }
 
@@ -110,18 +110,20 @@ public enum TranslateType {
                 String value = config.getString(key);
 
                 if (value == null) {
-                    DisguiseUtilities.getLogger().severe("Translation for " + name() + " has a null value for the key '" + key + "'");
-                } else {
-                    toDeDupe.put(key, true);
+                    LibsDisguises.getInstance().getLogger()
+                        .severe("Translation for " + name() + " has a null value for the key '" + key + "'");
+                    continue;
+                }
 
-                    String newKey = DisguiseUtilities.translateAlternateColorCodes(key);
-                    translated.put(newKey, DisguiseUtilities.translateAlternateColorCodes(value));
+                addDedupe(key, true);
 
-                    if (!newKey.equals(translated.get(newKey))) {
-                        diff++;
-                        translated.put(newKey, translated.get(newKey) +
-                            (diff % 3 == 0 || LibsMsg.OWNED_BY.getRaw().contains("Plugin registered to '") ? "" : " "));
-                    }
+                String newKey = DisguiseUtilities.translateAlternateColorCodes(key);
+                translated.put(newKey, DisguiseUtilities.translateAlternateColorCodes(value));
+
+                if (!newKey.equals(translated.get(newKey))) {
+                    diff++;
+                    translated.put(newKey, translated.get(newKey) +
+                        (diff % 3 == 0 || LibsMsg.OWNED_BY.getRaw().contains("Plugin registered to '") ? "" : " "));
                 }
             }
         } catch (Exception e) {
@@ -129,17 +131,13 @@ public enum TranslateType {
         }
 
         if (LibsPremium.isPremium() && DisguiseConfig.isUseTranslations()) {
-            DisguiseUtilities.getLogger()
+            LibsDisguises.getInstance().getLogger()
                 .info("Loaded " + translated.size() + " translations for " + name() + " with " + diff + " changed");
         } else if (diff > 0 && !DisguiseConfig.isUseTranslations()) {
-            DisguiseUtilities.getLogger().info(
+            LibsDisguises.getInstance().getLogger().info(
                 "Translations are disabled in libsdisguises.yml, but you modified " + diff + " messages in the translations for " + name() +
                     ". Is this intended?");
         }
-    }
-
-    private File getFile() {
-        return file;
     }
 
     public void save(String msg) {
@@ -155,7 +153,13 @@ public enum TranslateType {
     }
 
     public void save(LibsMsg orig, String rawMessage, String comment) {
-        toDeDupe.put(StringEscapeUtils.escapeJava(rawMessage.replace("§", "&")), false);
+        if (rawMessage.trim().isEmpty() && LibsDisguises.getInstance().isJenkins()) {
+            LibsDisguises.getInstance().getLogger()
+                .info("Skipping a translate type as it's empty, for " + name() + " with comment " + comment);
+            return;
+        }
+
+        addDedupe(StringEscapeUtils.escapeJava(rawMessage.replace("§", "&")), false);
 
         if (translated.containsKey(rawMessage)) {
             return;
@@ -170,7 +174,7 @@ public enum TranslateType {
                 value = translated.get(vanilla);
 
                 for (ChatColor color : ChatColor.values()) {
-                    value = value.replace("§" + color.getChar(), "<" + color.name().toLowerCase(Locale.ROOT) + ">");
+                    value = value.replace("§" + color.getChar(), "<" + DisguiseUtilities.getName(color) + ">");
                 }
             }
         }
@@ -211,6 +215,13 @@ public enum TranslateType {
         }
     }
 
+    private void addDedupe(String text, boolean isOutdated) {
+        // The first boolean in this array of 2, is "outdated"
+        // The second is if we've already removed it or not
+        // If it's outdated, then we claim we already removed the expected one, so it'll actually remove the outdated one
+        toDeDupe.put("\"" + text + "\": \"" + text + "\"", new Boolean[]{isOutdated, isOutdated});
+    }
+
     private void deDupeMessages() {
         try {
             if (!getFile().exists()) {
@@ -222,45 +233,41 @@ public enum TranslateType {
             int dupes = 0;
             int outdated = 0;
 
-            for (Map.Entry<String, Boolean> entry : toDeDupe.entrySet()) {
-                String s = entry.getKey();
-                boolean isOutdated = entry.getValue();
-                boolean removedFirst = isOutdated;
+            for (int i = 0; i < disguiseText.size(); i++) {
+                Boolean[] bools = toDeDupe.get(disguiseText.get(i));
 
-                String str = "\"" + s + "\": \"" + s + "\"";
+                if (bools == null) {
+                    continue;
+                }
 
-                for (int i = 0; i < disguiseText.size(); i++) {
-                    if (!disguiseText.get(i).equals(str)) {
-                        continue;
-                    }
+                // If we need to remove the first occurance
+                if (!bools[1]) {
+                    bools[1] = true;
+                    continue;
+                }
 
-                    if (!removedFirst) {
-                        removedFirst = true;
-                        continue;
-                    }
+                disguiseText.remove(i);
 
-                    disguiseText.remove(i);
+                // If this was outdated
+                if (bools[0]) {
+                    outdated++;
+                } else {
+                    dupes++;
+                }
 
-                    if (isOutdated) {
-                        outdated++;
-                    } else {
-                        dupes++;
-                    }
-
-                    if (disguiseText.get(--i).startsWith("# Reference: ")) {
-                        disguiseText.remove(i);
-                    }
-
-                    if (disguiseText.size() <= i || !disguiseText.get(i).isEmpty()) {
-                        continue;
-                    }
-
+                if (disguiseText.get(--i).startsWith("# Reference: ")) {
                     disguiseText.remove(i);
                 }
+
+                if (disguiseText.size() <= i || !disguiseText.get(i).isEmpty()) {
+                    continue;
+                }
+
+                disguiseText.remove(i);
             }
 
             if (dupes + outdated > 0) {
-                DisguiseUtilities.getLogger().info(
+                LibsDisguises.getInstance().getLogger().info(
                     "Removed " + dupes + " duplicate and " + outdated + " outdated translations from " + getFile().getName() +
                         ", this was likely caused by a previous issue in the plugin");
 

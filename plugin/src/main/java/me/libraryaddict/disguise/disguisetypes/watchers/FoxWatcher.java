@@ -5,21 +5,17 @@ import me.libraryaddict.disguise.disguisetypes.Disguise;
 import me.libraryaddict.disguise.disguisetypes.MetaIndex;
 import me.libraryaddict.disguise.utilities.parser.RandomDefaultValue;
 import me.libraryaddict.disguise.utilities.reflection.NmsVersion;
+import me.libraryaddict.disguise.utilities.reflection.ReflectionManager;
 import me.libraryaddict.disguise.utilities.reflection.annotations.NmsAddedIn;
 import org.bukkit.entity.Fox;
 
-import java.util.Random;
-
-/**
- * Created by libraryaddict on 6/05/2019.
- */
 @NmsAddedIn(NmsVersion.v1_14)
 public class FoxWatcher extends AgeableWatcher {
     public FoxWatcher(Disguise disguise) {
         super(disguise);
 
         if (DisguiseConfig.isRandomDisguises()) {
-            setType(Fox.Type.values()[new Random().nextInt(Fox.Type.values().length)]);
+            setType(ReflectionManager.randomEnum(Fox.Type.class));
         }
     }
 
@@ -48,13 +44,12 @@ public class FoxWatcher extends AgeableWatcher {
     }
 
     public Fox.Type getType() {
-        return Fox.Type.values()[getData(MetaIndex.FOX_TYPE)];
+        return getData(MetaIndex.FOX_TYPE);
     }
 
     @RandomDefaultValue
     public void setType(Fox.Type type) {
-        setData(MetaIndex.FOX_TYPE, type.ordinal());
-        sendData(MetaIndex.FOX_TYPE);
+        sendData(MetaIndex.FOX_TYPE, type);
     }
 
     public boolean isHeadTilted() {
@@ -102,7 +97,6 @@ public class FoxWatcher extends AgeableWatcher {
             b1 = (byte) (b1 & ~no);
         }
 
-        setData(MetaIndex.FOX_META, b1);
-        sendData(MetaIndex.FOX_META);
+        sendData(MetaIndex.FOX_META, b1);
     }
 }

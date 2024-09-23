@@ -1,10 +1,9 @@
 package me.libraryaddict.disguise.disguisetypes;
 
-import com.comphenix.protocol.ProtocolLibrary;
-import com.comphenix.protocol.events.PacketContainer;
+import com.github.retrooper.packetevents.PacketEvents;
+import com.github.retrooper.packetevents.wrapper.PacketWrapper;
 import me.libraryaddict.disguise.DisguiseAPI;
 import me.libraryaddict.disguise.utilities.DisguiseUtilities;
-import me.libraryaddict.disguise.utilities.reflection.ReflectionManager;
 import org.bukkit.Bukkit;
 import org.bukkit.entity.Player;
 
@@ -52,9 +51,9 @@ public abstract class TargetedDisguise extends Disguise {
                     Player player = Bukkit.getPlayerExact(playername);
 
                     if (player != null) {
-                        PacketContainer deleteTab = ReflectionManager.updateTablistVisibility((Player) getEntity(), !canSee(player));
+                        PacketWrapper<?> deleteTab = DisguiseUtilities.updateTablistVisibility((Player) getEntity(), !canSee(player));
 
-                        ProtocolLibrary.getProtocolManager().sendServerPacket(player, deleteTab);
+                        PacketEvents.getAPI().getPlayerManager().sendPacket(player, deleteTab);
                     }
                 }
             }
@@ -113,9 +112,9 @@ public abstract class TargetedDisguise extends Disguise {
                     Player player = Bukkit.getPlayerExact(playername);
 
                     if (player != null) {
-                        PacketContainer deleteTab = ReflectionManager.updateTablistVisibility((Player) getEntity(), canSee(player));
+                        PacketWrapper deleteTab = DisguiseUtilities.updateTablistVisibility((Player) getEntity(), canSee(player));
 
-                        ProtocolLibrary.getProtocolManager().sendServerPacket(player, deleteTab);
+                        PacketEvents.getAPI().getPlayerManager().sendPacket(player, deleteTab);
                     }
                 }
             }

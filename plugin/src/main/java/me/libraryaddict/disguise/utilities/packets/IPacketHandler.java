@@ -1,16 +1,13 @@
 package me.libraryaddict.disguise.utilities.packets;
 
-import com.comphenix.protocol.PacketType;
-import com.comphenix.protocol.events.PacketContainer;
+import com.github.retrooper.packetevents.protocol.packettype.PacketTypeCommon;
+import com.github.retrooper.packetevents.wrapper.PacketWrapper;
 import me.libraryaddict.disguise.disguisetypes.Disguise;
 import org.bukkit.entity.Entity;
 import org.bukkit.entity.Player;
 
-/**
- * Created by libraryaddict on 3/01/2019.
- */
-public interface IPacketHandler {
-    PacketType[] getHandledPackets();
+public interface IPacketHandler<T extends PacketWrapper<T>> {
+    PacketTypeCommon[] getHandledPackets();
 
-    void handle(Disguise disguise, PacketContainer sentPacket, LibsPackets packets, Player observer, Entity entity);
+    void handle(Disguise disguise, LibsPackets<T> packets, Player observer, Entity entity);
 }

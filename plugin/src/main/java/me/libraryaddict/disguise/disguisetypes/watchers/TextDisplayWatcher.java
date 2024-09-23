@@ -1,11 +1,8 @@
 package me.libraryaddict.disguise.disguisetypes.watchers;
 
-import com.comphenix.protocol.wrappers.ComponentConverter;
-import com.comphenix.protocol.wrappers.WrappedChatComponent;
 import me.libraryaddict.disguise.disguisetypes.Disguise;
 import me.libraryaddict.disguise.disguisetypes.MetaIndex;
 import me.libraryaddict.disguise.utilities.DisguiseUtilities;
-import net.md_5.bungee.api.chat.BaseComponent;
 import org.bukkit.Color;
 import org.bukkit.entity.Display;
 import org.bukkit.entity.TextDisplay;
@@ -19,15 +16,11 @@ public class TextDisplayWatcher extends DisplayWatcher {
     }
 
     public String getText() {
-        BaseComponent[] base = ComponentConverter.fromWrapper(getData(MetaIndex.TEXT_DISPLAY_TEXT));
-
-        return DisguiseUtilities.getSimpleString(base);
+        return DisguiseUtilities.getSimpleString(getData(MetaIndex.TEXT_DISPLAY_TEXT));
     }
 
     public void setText(String string) {
-        setData(MetaIndex.TEXT_DISPLAY_TEXT,
-            WrappedChatComponent.fromJson(DisguiseUtilities.serialize(DisguiseUtilities.getAdventureChat(string))));
-        sendData(MetaIndex.TEXT_DISPLAY_TEXT);
+        sendData(MetaIndex.TEXT_DISPLAY_TEXT, DisguiseUtilities.getAdventureChat(string));
     }
 
     public int getLineWidth() {
@@ -35,8 +28,7 @@ public class TextDisplayWatcher extends DisplayWatcher {
     }
 
     public void setLineWidth(int width) {
-        setData(MetaIndex.TEXT_DISPLAY_LINE_WIDTH, width);
-        sendData(MetaIndex.TEXT_DISPLAY_LINE_WIDTH);
+        sendData(MetaIndex.TEXT_DISPLAY_LINE_WIDTH, width);
     }
 
     public Color getBackgroundColor() {
@@ -50,8 +42,7 @@ public class TextDisplayWatcher extends DisplayWatcher {
     }
 
     public void setBackgroundColor(Color color) {
-        setData(MetaIndex.TEXT_DISPLAY_BACKGROUND_COLOR, color == null ? -1 : color.asARGB());
-        sendData(MetaIndex.TEXT_DISPLAY_BACKGROUND_COLOR);
+        sendData(MetaIndex.TEXT_DISPLAY_BACKGROUND_COLOR, color == null ? -1 : color.asARGB());
     }
 
     public byte getTextOpacity() {
@@ -63,8 +54,7 @@ public class TextDisplayWatcher extends DisplayWatcher {
             return;
         }
 
-        setData(MetaIndex.TEXT_DISPLAY_TEXT_OPACITY, opacity);
-        sendData(MetaIndex.TEXT_DISPLAY_TEXT_OPACITY);
+        sendData(MetaIndex.TEXT_DISPLAY_TEXT_OPACITY, opacity);
     }
 
     public boolean isShadowed() {
@@ -132,8 +122,7 @@ public class TextDisplayWatcher extends DisplayWatcher {
             flagBits = (byte) (flagBits & ~flag);
         }
 
-        setData(MetaIndex.TEXT_DISPLAY_FLAGS, flagBits);
-        sendData(MetaIndex.TEXT_DISPLAY_FLAGS);
+        sendData(MetaIndex.TEXT_DISPLAY_FLAGS, flagBits);
     }
 
 }

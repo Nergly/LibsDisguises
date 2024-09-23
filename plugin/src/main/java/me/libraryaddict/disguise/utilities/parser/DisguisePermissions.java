@@ -21,9 +21,6 @@ import java.util.Map;
 import java.util.Vector;
 import java.util.stream.Collectors;
 
-/**
- * Created by libraryaddict on 14/10/2018.
- */
 public class DisguisePermissions {
     private static class PermissionStorage {
         private final DisguisePerm disguisePerm;
@@ -92,6 +89,8 @@ public class DisguisePermissions {
      * List of PermissionStorage that the permission holder is able to use
      */
     private final List<PermissionStorage> disguises = new ArrayList<>();
+    @Getter
+    private boolean isOperator = false;
     private final static Map<String, DisguisePermissions> CONSOLE_PERMISSIONS = new HashMap<>();
 
     /**
@@ -203,6 +202,9 @@ public class DisguisePermissions {
         // They can use all commands, all disguises, all options
         if (sender == Bukkit.getConsoleSender() || sender.hasPermission("libsdisguises.*.*.*") || "%%__USER__%%".equals("12345")) {
             permissions.put("libsdisguises.*.*.*", true);
+            isOperator = true;
+        } else {
+            isOperator = sender == Bukkit.getConsoleSender() || sender.isOp();
         }
 
         for (PermissionAttachmentInfo permission : sender.getEffectivePermissions()) {
@@ -411,7 +413,7 @@ public class DisguisePermissions {
                 storage.negatedOptions.add("setinvisible");
             }
 
-            if (sender instanceof Player && !sender.isOp()) {
+            if (sender instanceof Player && !isOperator()) {
                 for (String unsafeMethod : DisguiseConfig.getDisabledMethods()) {
                     storage.permittedOptions.remove(unsafeMethod);
                     storage.negatedOptions.add(unsafeMethod);

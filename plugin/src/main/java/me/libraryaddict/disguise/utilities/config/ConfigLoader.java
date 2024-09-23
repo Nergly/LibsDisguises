@@ -2,7 +2,6 @@ package me.libraryaddict.disguise.utilities.config;
 
 import lombok.Getter;
 import me.libraryaddict.disguise.LibsDisguises;
-import me.libraryaddict.disguise.utilities.DisguiseUtilities;
 import me.libraryaddict.disguise.utilities.reflection.ClassGetter;
 import me.libraryaddict.disguise.utilities.reflection.ReflectionManager;
 import org.apache.commons.lang.StringEscapeUtils;
@@ -16,9 +15,6 @@ import java.io.PrintWriter;
 import java.util.ArrayList;
 import java.util.List;
 
-/**
- * Created by libraryaddict on 31/01/2021.
- */
 public class ConfigLoader {
     @Getter
     private final List<String> configs = new ArrayList<>();
@@ -53,7 +49,7 @@ public class ConfigLoader {
         }
 
         if (migrated) {
-            DisguiseUtilities.getLogger().info("Migrated old config system to new config system");
+            LibsDisguises.getInstance().getLogger().info("Migrated old config system to new config system");
             oldFile.delete();
         }
     }
@@ -110,7 +106,7 @@ public class ConfigLoader {
     }
 
     public void saveDefaultConfig(String name) {
-        DisguiseUtilities.getLogger().info("Config " + name + " is out of date (Or missing)! Now refreshing it!");
+        LibsDisguises.getInstance().getLogger().info("Config " + name + " is out of date (Or missing)! Now refreshing it!");
         String ourConfig = ReflectionManager.getResourceAsString(LibsDisguises.getInstance().getFile(), name);
         YamlConfiguration savedConfig = null;
 

@@ -1,27 +1,65 @@
 package me.libraryaddict.disguise.utilities;
 
-import com.comphenix.protocol.PacketType.Play.Server;
-import com.comphenix.protocol.ProtocolLibrary;
-import com.comphenix.protocol.ProtocolManager;
-import com.comphenix.protocol.events.PacketContainer;
-import com.comphenix.protocol.wrappers.WrappedBlockData;
-import com.comphenix.protocol.wrappers.WrappedChatComponent;
-import com.comphenix.protocol.wrappers.WrappedDataWatcher;
-import com.comphenix.protocol.wrappers.WrappedGameProfile;
-import com.comphenix.protocol.wrappers.WrappedParticle;
-import com.comphenix.protocol.wrappers.nbt.NbtBase;
-import com.comphenix.protocol.wrappers.nbt.NbtCompound;
-import com.comphenix.protocol.wrappers.nbt.NbtList;
+import com.github.retrooper.packetevents.PacketEvents;
+import com.github.retrooper.packetevents.event.PacketSendEvent;
+import com.github.retrooper.packetevents.event.simple.PacketPlaySendEvent;
+import com.github.retrooper.packetevents.protocol.entity.data.EntityData;
+import com.github.retrooper.packetevents.protocol.entity.type.EntityTypes;
+import com.github.retrooper.packetevents.protocol.item.enchantment.type.EnchantmentType;
+import com.github.retrooper.packetevents.protocol.item.enchantment.type.EnchantmentTypes;
+import com.github.retrooper.packetevents.protocol.item.type.ItemTypes;
+import com.github.retrooper.packetevents.protocol.packettype.PacketType;
+import com.github.retrooper.packetevents.protocol.particle.Particle;
+import com.github.retrooper.packetevents.protocol.player.Equipment;
+import com.github.retrooper.packetevents.protocol.player.EquipmentSlot;
+import com.github.retrooper.packetevents.protocol.player.UserProfile;
+import com.github.retrooper.packetevents.protocol.world.Direction;
+import com.github.retrooper.packetevents.protocol.world.states.WrappedBlockState;
+import com.github.retrooper.packetevents.util.Vector3d;
+import com.github.retrooper.packetevents.util.adventure.AdventureSerializer;
+import com.github.retrooper.packetevents.wrapper.PacketWrapper;
+import com.github.retrooper.packetevents.wrapper.play.server.WrapperPlayServerAttachEntity;
+import com.github.retrooper.packetevents.wrapper.play.server.WrapperPlayServerCollectItem;
+import com.github.retrooper.packetevents.wrapper.play.server.WrapperPlayServerDestroyEntities;
+import com.github.retrooper.packetevents.wrapper.play.server.WrapperPlayServerEntityAnimation;
+import com.github.retrooper.packetevents.wrapper.play.server.WrapperPlayServerEntityEffect;
+import com.github.retrooper.packetevents.wrapper.play.server.WrapperPlayServerEntityEquipment;
+import com.github.retrooper.packetevents.wrapper.play.server.WrapperPlayServerEntityHeadLook;
+import com.github.retrooper.packetevents.wrapper.play.server.WrapperPlayServerEntityMetadata;
+import com.github.retrooper.packetevents.wrapper.play.server.WrapperPlayServerEntityMovement;
+import com.github.retrooper.packetevents.wrapper.play.server.WrapperPlayServerEntityRelativeMove;
+import com.github.retrooper.packetevents.wrapper.play.server.WrapperPlayServerEntityRelativeMoveAndRotation;
+import com.github.retrooper.packetevents.wrapper.play.server.WrapperPlayServerEntityRotation;
+import com.github.retrooper.packetevents.wrapper.play.server.WrapperPlayServerEntitySoundEffect;
+import com.github.retrooper.packetevents.wrapper.play.server.WrapperPlayServerEntityStatus;
+import com.github.retrooper.packetevents.wrapper.play.server.WrapperPlayServerEntityTeleport;
+import com.github.retrooper.packetevents.wrapper.play.server.WrapperPlayServerEntityVelocity;
+import com.github.retrooper.packetevents.wrapper.play.server.WrapperPlayServerPlayerInfo;
+import com.github.retrooper.packetevents.wrapper.play.server.WrapperPlayServerPlayerInfoRemove;
+import com.github.retrooper.packetevents.wrapper.play.server.WrapperPlayServerPlayerInfoUpdate;
+import com.github.retrooper.packetevents.wrapper.play.server.WrapperPlayServerPlayerPositionAndLook;
+import com.github.retrooper.packetevents.wrapper.play.server.WrapperPlayServerRemoveEntityEffect;
+import com.github.retrooper.packetevents.wrapper.play.server.WrapperPlayServerSpawnEntity;
+import com.github.retrooper.packetevents.wrapper.play.server.WrapperPlayServerSpawnExperienceOrb;
+import com.github.retrooper.packetevents.wrapper.play.server.WrapperPlayServerSpawnLivingEntity;
+import com.github.retrooper.packetevents.wrapper.play.server.WrapperPlayServerSpawnPainting;
+import com.github.retrooper.packetevents.wrapper.play.server.WrapperPlayServerSpawnPlayer;
+import com.github.retrooper.packetevents.wrapper.play.server.WrapperPlayServerUpdateAttributes;
 import com.google.common.cache.Cache;
 import com.google.common.cache.CacheBuilder;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import com.google.gson.JsonSerializer;
 import com.google.gson.JsonSyntaxException;
+import com.mojang.authlib.GameProfile;
 import com.mojang.authlib.properties.PropertyMap;
-import com.mojang.datafixers.util.Pair;
+import io.github.retrooper.packetevents.adventure.serializer.legacy.LegacyComponentSerializer;
+import io.github.retrooper.packetevents.util.SpigotConversionUtil;
+import libsdisg.shaded.net.kyori.adventure.text.minimessage.MiniMessage;
+import libsdisg.shaded.net.kyori.adventure.text.serializer.gson.GsonComponentSerializer;
 import lombok.Getter;
 import lombok.Setter;
+import lombok.SneakyThrows;
 import me.libraryaddict.disguise.DisguiseAPI;
 import me.libraryaddict.disguise.DisguiseConfig;
 import me.libraryaddict.disguise.LibsDisguises;
@@ -29,22 +67,22 @@ import me.libraryaddict.disguise.disguisetypes.Disguise;
 import me.libraryaddict.disguise.disguisetypes.DisguiseType;
 import me.libraryaddict.disguise.disguisetypes.FlagWatcher;
 import me.libraryaddict.disguise.disguisetypes.MetaIndex;
+import me.libraryaddict.disguise.disguisetypes.MobDisguise;
 import me.libraryaddict.disguise.disguisetypes.PlayerDisguise;
 import me.libraryaddict.disguise.disguisetypes.TargetedDisguise;
 import me.libraryaddict.disguise.disguisetypes.TargetedDisguise.TargetType;
 import me.libraryaddict.disguise.disguisetypes.watchers.AgeableWatcher;
 import me.libraryaddict.disguise.disguisetypes.watchers.ArmorStandWatcher;
-import me.libraryaddict.disguise.disguisetypes.watchers.PlayerWatcher;
+import me.libraryaddict.disguise.disguisetypes.watchers.LivingWatcher;
+import me.libraryaddict.disguise.disguisetypes.watchers.TextDisplayWatcher;
 import me.libraryaddict.disguise.disguisetypes.watchers.ZombieWatcher;
-import me.libraryaddict.disguise.utilities.json.SerializerBlockData;
-import me.libraryaddict.disguise.utilities.json.SerializerChatComponent;
-import me.libraryaddict.disguise.utilities.json.SerializerDisguise;
-import me.libraryaddict.disguise.utilities.json.SerializerFlagWatcher;
-import me.libraryaddict.disguise.utilities.json.SerializerGameProfile;
-import me.libraryaddict.disguise.utilities.json.SerializerItemStack;
-import me.libraryaddict.disguise.utilities.json.SerializerMetaIndex;
-import me.libraryaddict.disguise.utilities.json.SerializerParticle;
-import me.libraryaddict.disguise.utilities.json.SerializerWrappedBlockData;
+import me.libraryaddict.disguise.utilities.gson.SerializerBlockData;
+import me.libraryaddict.disguise.utilities.gson.SerializerChatComponent;
+import me.libraryaddict.disguise.utilities.gson.SerializerItemStack;
+import me.libraryaddict.disguise.utilities.gson.SerializerMetaIndex;
+import me.libraryaddict.disguise.utilities.gson.SerializerParticle;
+import me.libraryaddict.disguise.utilities.gson.SerializerUserProfile;
+import me.libraryaddict.disguise.utilities.gson.SerializerWrappedBlockData;
 import me.libraryaddict.disguise.utilities.mineskin.MineSkinAPI;
 import me.libraryaddict.disguise.utilities.packets.LibsPackets;
 import me.libraryaddict.disguise.utilities.packets.PacketsManager;
@@ -56,12 +94,11 @@ import me.libraryaddict.disguise.utilities.reflection.NmsVersion;
 import me.libraryaddict.disguise.utilities.reflection.ReflectionManager;
 import me.libraryaddict.disguise.utilities.reflection.WatcherValue;
 import me.libraryaddict.disguise.utilities.translations.LibsMsg;
-import me.libraryaddict.disguise.utilities.watchers.CompileMethods;
+import me.libraryaddict.disguise.utilities.updates.PacketEventsUpdater;
+import me.libraryaddict.disguise.utilities.watchers.CompileMethodsIntfer;
+import me.libraryaddict.disguise.utilities.watchers.DisguiseMethods;
 import net.kyori.adventure.text.Component;
-import net.kyori.adventure.text.minimessage.MiniMessage;
-import net.kyori.adventure.text.serializer.gson.GsonComponentSerializer;
 import net.md_5.bungee.api.chat.BaseComponent;
-import net.md_5.bungee.api.chat.TextComponent;
 import net.md_5.bungee.chat.ComponentSerializer;
 import org.apache.commons.lang.StringUtils;
 import org.apache.commons.lang.math.RandomUtils;
@@ -71,11 +108,16 @@ import org.bukkit.Location;
 import org.bukkit.Material;
 import org.bukkit.NamespacedKey;
 import org.bukkit.World;
+import org.bukkit.attribute.Attribute;
+import org.bukkit.attribute.AttributeInstance;
+import org.bukkit.attribute.AttributeModifier;
+import org.bukkit.block.BlockFace;
 import org.bukkit.block.data.BlockData;
 import org.bukkit.boss.KeyedBossBar;
 import org.bukkit.command.CommandSender;
 import org.bukkit.enchantments.Enchantment;
 import org.bukkit.entity.Ageable;
+import org.bukkit.entity.Display;
 import org.bukkit.entity.Entity;
 import org.bukkit.entity.EntityType;
 import org.bukkit.entity.Item;
@@ -83,15 +125,12 @@ import org.bukkit.entity.LivingEntity;
 import org.bukkit.entity.Player;
 import org.bukkit.entity.Wolf;
 import org.bukkit.entity.Zombie;
-import org.bukkit.inventory.EquipmentSlot;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.PlayerInventory;
 import org.bukkit.inventory.meta.ItemMeta;
 import org.bukkit.metadata.FixedMetadataValue;
 import org.bukkit.persistence.PersistentDataContainer;
 import org.bukkit.persistence.PersistentDataType;
-import org.bukkit.plugin.Plugin;
-import org.bukkit.plugin.java.JavaPlugin;
 import org.bukkit.potion.PotionEffect;
 import org.bukkit.scheduler.BukkitRunnable;
 import org.bukkit.scoreboard.Scoreboard;
@@ -108,11 +147,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.PrintWriter;
-import java.lang.reflect.Array;
-import java.lang.reflect.Field;
 import java.lang.reflect.Method;
-import java.lang.reflect.ParameterizedType;
-import java.lang.reflect.Type;
 import java.net.HttpURLConnection;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
@@ -121,8 +156,10 @@ import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Base64;
+import java.util.BitSet;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
@@ -136,7 +173,6 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
-import java.util.logging.Logger;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
@@ -230,10 +266,12 @@ public class DisguiseUtilities {
     private static final HashMap<Integer, HashSet<TargetedDisguise>> futureDisguises = new HashMap<>();
     private static final HashSet<UUID> savedDisguiseList = new HashSet<>();
     private static final HashSet<String> cachedNames = new HashSet<>();
+    private static final HashMap<String, String> sanitySkinCacheMap = new LinkedHashMap<>();
     private static final HashMap<String, ArrayList<Object>> runnables = new HashMap<>();
     @Getter
     private static final HashSet<UUID> selfDisguised = new HashSet<>();
     private static final File profileCache;
+    private static final File sanitySkinCacheFile;
     private static final File savedDisguises;
     @Getter
     private static Gson gson;
@@ -245,28 +283,52 @@ public class DisguiseUtilities {
     private static final HashMap<UUID, ArrayList<Integer>> disguiseLoading = new HashMap<>();
     @Getter
     private static boolean runningPaper;
-    @Getter
-    private static final MineSkinAPI mineSkinAPI = new MineSkinAPI();
+    private static MineSkinAPI mineSkinAPI;
     @Getter
     private static boolean invalidFile;
     @Getter
     private static final char[] alphabet = "0123456789abcdefghijklmnopqrstuvwxyz".toCharArray();
     private static final Pattern urlMatcher = Pattern.compile("^(?:(https?)://)?([-\\w_.]{2,}\\.[a-z]{2,4})(/\\S*)?$");
+    /**
+     * -- GETTER --
+     * Returns the list of people who have /disguiseViewSelf toggled
+     *
+     * @return
+     */
+    @Getter
     private final static List<UUID> viewSelf = new ArrayList<>();
+    /**
+     * -- GETTER --
+     * Returns the list of people who have /disguiseviewbar toggled
+     *
+     * @return
+     */
+    @Getter
     private final static List<UUID> viewBar = new ArrayList<>();
     private static long lastSavedPreferences;
     @Getter
     private final static ConcurrentHashMap<String, DScoreTeam> teams = new ConcurrentHashMap<>();
-    private final static boolean java16;
     private static boolean criedOverJava16;
     private static final HashSet<UUID> warnedSkin = new HashSet<>();
     @Getter
     private static boolean fancyHiddenTabs;
     @Getter
-    @Setter
-    private static boolean protocollibUpdateDownloaded;
     private static NamespacedKey savedDisguisesKey;
-    private static final List<Enchantment> whitelistedEnchantments = new ArrayList<>();
+    private static final Map<Enchantment, EnchantmentType> whitelistedEnchantments = new HashMap<Enchantment, EnchantmentType>();
+    @Getter
+    private static Enchantment durabilityEnchantment, waterbreathingEnchantment;
+    @Getter
+    private final static EntityType entityItem;
+    @Getter
+    private static final MiniMessage miniMessage = MiniMessage.builder().build();
+    private static final GsonComponentSerializer internalComponentSerializer = GsonComponentSerializer.gson();
+    private static final io.github.retrooper.packetevents.adventure.serializer.gson.GsonComponentSerializer externalComponentSerializer =
+        io.github.retrooper.packetevents.adventure.serializer.gson.GsonComponentSerializer.gson();
+    @Getter
+    private static NamespacedKey selfDisguiseScaleNamespace;
+    @Getter
+    @Setter
+    private static boolean debuggingMode;
 
     static {
         try {
@@ -275,40 +337,53 @@ public class DisguiseUtilities {
         } catch (Exception ignored) {
         }
 
-        final Matcher matcher = Pattern.compile("(?:1\\.)?(\\d+)").matcher(System.getProperty("java.version"));
-
-        if (!matcher.find()) {
-            java16 = true;
-        } else {
-            int vers = 16;
-
-            try {
-                vers = Integer.parseInt(matcher.group(1));
-            } catch (NumberFormatException ignored) {
-            }
-
-            java16 = vers >= 16;
-        }
-
         if (LibsDisguises.getInstance() == null) {
             profileCache = null;
+            sanitySkinCacheFile = null;
             savedDisguises = null;
         } else {
             profileCache = new File(LibsDisguises.getInstance().getDataFolder(), "SavedSkins");
+            sanitySkinCacheFile = new File(LibsDisguises.getInstance().getDataFolder(), "SavedSkins/sanity.json");
             savedDisguises = new File(LibsDisguises.getInstance().getDataFolder(), "SavedDisguises");
         }
 
-        whitelistedEnchantments.add(Enchantment.DEPTH_STRIDER);
-        whitelistedEnchantments.add(Enchantment.OXYGEN);
+        entityItem = EntityType.fromName("item");
 
-        if (Bukkit.getServer() != null && NmsVersion.v1_13.isSupported()) {
-            whitelistedEnchantments.add(Enchantment.RIPTIDE);
+        if (Bukkit.getServer() != null) {
+            durabilityEnchantment = Enchantment.getByName("unbreaking");
+            waterbreathingEnchantment = Enchantment.getByName("respiration");
 
-            if (NmsVersion.v1_19_R1.isSupported()) {
-                whitelistedEnchantments.add(Enchantment.SOUL_SPEED);
-                whitelistedEnchantments.add(Enchantment.SWIFT_SNEAK);
+            whitelistedEnchantments.put(Enchantment.DEPTH_STRIDER, EnchantmentTypes.DEPTH_STRIDER);
+            whitelistedEnchantments.put(getWaterbreathingEnchantment(), EnchantmentTypes.RESPIRATION);
+
+            if (Bukkit.getServer() != null && NmsVersion.v1_13.isSupported()) {
+                whitelistedEnchantments.put(Enchantment.RIPTIDE, EnchantmentTypes.RIPTIDE);
+
+                if (NmsVersion.v1_19_R1.isSupported()) {
+                    whitelistedEnchantments.put(Enchantment.SOUL_SPEED, EnchantmentTypes.SOUL_SPEED);
+                    whitelistedEnchantments.put(Enchantment.SWIFT_SNEAK, EnchantmentTypes.SWIFT_SNEAK);
+                }
             }
         }
+    }
+
+    public static boolean shouldBeHiddenSelfDisguise(com.github.retrooper.packetevents.protocol.item.ItemStack itemStack) {
+        if (itemStack == null || itemStack.isEmpty() || itemStack.getType() == ItemTypes.AIR) {
+            return false;
+        }
+
+        List<com.github.retrooper.packetevents.protocol.item.enchantment.Enchantment> enchants =
+            itemStack.getEnchantments(PacketEvents.getAPI().getServerManager().getVersion().toClientVersion());
+
+        for (com.github.retrooper.packetevents.protocol.item.enchantment.Enchantment enchantment : enchants) {
+            if (enchantment == null || !whitelistedEnchantments.containsValue(enchantment.getType())) {
+                continue;
+            }
+
+            return false;
+        }
+
+        return true;
     }
 
     public static boolean shouldBeHiddenSelfDisguise(ItemStack itemStack) {
@@ -319,7 +394,7 @@ public class DisguiseUtilities {
         Map<Enchantment, Integer> enchants = itemStack.getEnchantments();
 
         for (Enchantment enchantment : enchants.keySet()) {
-            if (!whitelistedEnchantments.contains(enchantment)) {
+            if (!whitelistedEnchantments.containsKey(enchantment)) {
                 continue;
             }
 
@@ -329,12 +404,26 @@ public class DisguiseUtilities {
         return true;
     }
 
+    public static void removeSelfDisguiseScale(Entity entity) {
+        if (!NmsVersion.v1_21_R1.isSupported() || isInvalidFile() || !(entity instanceof LivingEntity)) {
+            return;
+        }
+
+        AttributeInstance attribute = ((LivingEntity) entity).getAttribute(Attribute.GENERIC_SCALE);
+        attribute.getModifiers().stream().filter(a -> a.getKey().equals(DisguiseUtilities.getSelfDisguiseScaleNamespace()))
+            .forEach(attribute::removeModifier);
+    }
+
+    public static double getNameSpacing() {
+        return 0.28;
+    }
+
     public static String serialize(Component component) {
-        return GsonComponentSerializer.gson().serialize(component);
+        return AdventureSerializer.getGsonSerializer().serialize(component);
     }
 
     public static void doSkinUUIDWarning(CommandSender sender) {
-        if (!(sender instanceof Player)) {
+        if (!(sender instanceof Player) || DisguiseConfig.getUUIDGeneratedVersion() == 3) {
             return;
         }
 
@@ -366,43 +455,60 @@ public class DisguiseUtilities {
         }.runTaskLater(LibsDisguises.getInstance(), 20 * TimeUnit.SECONDS.toMillis(120));
     }
 
-    /**
-     * Returns the list of people who have /disguiseViewSelf toggled
-     *
-     * @return
-     */
-    public static List<UUID> getViewSelf() {
-        return viewSelf;
-    }
-
-    public static String getDisplayName(CommandSender player) {
-        if (player == null) {
+    public static String getDisplayName(CommandSender commandSender) {
+        if (commandSender == null) {
             return "???";
         }
 
-        if (!(player instanceof Player)) {
-            return player.getName();
+        if (!(commandSender instanceof Player)) {
+            return commandSender.getName();
         }
 
-        Team team = ((Player) player).getScoreboard().getEntryTeam(player.getName());
+        Player player = (Player) commandSender;
+
+        Team team = player.getScoreboard().getEntryTeam(commandSender.getName());
 
         if (team == null) {
-            team = ((Player) player).getScoreboard().getEntryTeam(((Player) player).getUniqueId().toString());
+            team = player.getScoreboard().getEntryTeam(player.getUniqueId().toString());
         }
 
         String name;
 
         if (team == null || (StringUtils.isEmpty(team.getPrefix()) && StringUtils.isEmpty(team.getSuffix()))) {
-            name = ((Player) player).getDisplayName();
+            // Only in paper on 1.16+ can we fetch this via component
+            if (isRunningPaper() && NmsVersion.v1_16.isSupported()) {
+                name = toMiniMessage(player.displayName());
 
-            if (name.equals(player.getName())) {
-                name = ((Player) player).getPlayerListName();
+                if (name.equals(player.getName())) {
+                    name = toMiniMessage(player.playerListName());
+                }
+            } else {
+                name = player.getDisplayName();
+
+                if (name.equals(player.getName())) {
+                    name = player.getPlayerListName();
+                }
             }
         } else {
-            name = team.getPrefix() + team.getColor() + player.getName() + team.getSuffix();
+            // Only in paper on 1.16+ can we fetch the prefix & suffix via component
+            if (isRunningPaper() && NmsVersion.v1_16.isSupported()) {
+                // This nasty workaround is because kyori isn't able to tell if "&lText &cHere" should have "Here" bold or not.
+                // Normally the &c would have reset it, but (checked on 1.21) using getPrefix will return the above text when the "Here"
+                // should explicitly not be bold
+                // That is expected, however Kyori minimessage parses it as bold.
+                // It's treating the string as "<bold>text <red>here</red></bold>" instead of "<bold>text </bold><red>here</red>"
+                name = toMiniMessage(team.prefix()) + team.getColor() + player.getName() + toMiniMessage(team.suffix());
+            } else {
+                name = team.getPrefix() + team.getColor() + player.getName() + team.getSuffix();
+            }
         }
 
         return getHexedColors(name);
+    }
+
+    private static String toMiniMessage(Component component) {
+        // Why do we run this through two serializers? Because the alternative is that we shade 2 versions of minimessage instead of just 1.
+        return getMiniMessage().serialize(internalComponentSerializer.deserialize(externalComponentSerializer.serialize(component)));
     }
 
     public static String getHexedColors(String string) {
@@ -477,7 +583,7 @@ public class DisguiseUtilities {
         }
 
         player.removeMetadata("LibsDisguises Invisible Slime", LibsDisguises.getInstance());
-        ProtocolLibrary.getProtocolManager().sendServerPacket(player, getDestroyPacket(DisguiseAPI.getEntityAttachmentId()), false);
+        PacketEvents.getAPI().getPlayerManager().sendPacketSilently(player, getDestroyPacket(DisguiseAPI.getEntityAttachmentId()));
     }
 
     public static void sendInvisibleSlime(Player player, int horseId) {
@@ -485,42 +591,42 @@ public class DisguiseUtilities {
             player.setMetadata("LibsDisguises Invisible Slime", new FixedMetadataValue(LibsDisguises.getInstance(), true));
         }
 
-        PacketContainer packet = ProtocolLibrary.getProtocolManager()
-            .createPacketConstructor(NmsVersion.v1_19_R1.isSupported() ? Server.SPAWN_ENTITY : Server.SPAWN_ENTITY_LIVING, player)
-            .createPacket(player);
+        Location loc = player.getLocation();
+        Vector velocity = player.getVelocity();
 
-        packet.getModifier().write(0, DisguiseAPI.getEntityAttachmentId());
-        packet.getUUIDs().write(0, UUID.randomUUID());
-        packet.getModifier()
-            .write(2, NmsVersion.v1_19_R1.isSupported() ? DisguiseType.SLIME.getNmsEntityType() : DisguiseType.SLIME.getTypeId());
+        if (NmsVersion.v1_19_R1.isSupported()) {
+            WrapperPlayServerSpawnEntity packet =
+                new WrapperPlayServerSpawnEntity(DisguiseAPI.getEntityAttachmentId(), UUID.randomUUID(), EntityTypes.SLIME,
+                    SpigotConversionUtil.fromBukkitLocation(loc), 0, 0, new Vector3d(velocity.getX(), velocity.getY(), velocity.getZ()));
 
-        if (NmsVersion.v1_15.isSupported()) {
-            PacketContainer metaPacket = ReflectionManager.getMetadataPacket(DisguiseAPI.getEntityAttachmentId(),
-                Collections.singletonList(new WatcherValue(MetaIndex.SLIME_SIZE, 0)));
-
-            ProtocolLibrary.getProtocolManager().sendServerPacket(player, packet, false);
-            ProtocolLibrary.getProtocolManager().sendServerPacket(player, metaPacket, false);
+            PacketEvents.getAPI().getPlayerManager().sendPacketSilently(player, packet);
         } else {
-            WrappedDataWatcher watcher = new WrappedDataWatcher();
+            WrapperPlayServerSpawnLivingEntity packet =
+                new WrapperPlayServerSpawnLivingEntity(DisguiseAPI.getEntityAttachmentId(), UUID.randomUUID(), EntityTypes.SLIME,
+                    SpigotConversionUtil.fromBukkitLocation(loc), 0, new Vector3d(velocity.getX(), velocity.getY(), velocity.getZ()),
+                    new ArrayList<>());
 
-            WrappedDataWatcher.WrappedDataWatcherObject obj = ReflectionManager.createDataWatcherObject(MetaIndex.SLIME_SIZE, 0);
-            watcher.setObject(obj, 0);
+            if (!(NmsVersion.v1_15.isSupported())) {
+                packet.setEntityMetadata(Collections.singletonList(ReflectionManager.getEntityData(MetaIndex.SLIME_SIZE, 0, false)));
+            }
 
-            packet.getDataWatcherModifier().write(0, watcher);
+            PacketEvents.getAPI().getPlayerManager().sendPacketSilently(player, packet);
 
-            ProtocolLibrary.getProtocolManager().sendServerPacket(player, packet, false);
         }
 
-        PacketContainer attachHorse = new PacketContainer(Server.MOUNT);
-        attachHorse.getModifier().write(0, horseId);
-        attachHorse.getModifier().write(1, new int[]{DisguiseAPI.getEntityAttachmentId()});
+        if (NmsVersion.v1_15.isSupported()) {
+            WrapperPlayServerEntityMetadata metadata = new WrapperPlayServerEntityMetadata(DisguiseAPI.getEntityAttachmentId(),
+                Collections.singletonList(ReflectionManager.getEntityData(MetaIndex.SLIME_SIZE, 0, false)));
 
-        PacketContainer attachPlayer = new PacketContainer(Server.MOUNT);
-        attachPlayer.getModifier().write(0, DisguiseAPI.getEntityAttachmentId());
-        attachPlayer.getModifier().write(1, new int[]{player.getEntityId()});
+            PacketEvents.getAPI().getPlayerManager().sendPacketSilently(player, metadata);
+        }
 
-        ProtocolLibrary.getProtocolManager().sendServerPacket(player, attachHorse, false);
-        ProtocolLibrary.getProtocolManager().sendServerPacket(player, attachPlayer, false);
+        WrapperPlayServerAttachEntity attachHorse = new WrapperPlayServerAttachEntity(horseId, DisguiseAPI.getEntityAttachmentId(), false);
+        WrapperPlayServerAttachEntity attachPlayer =
+            new WrapperPlayServerAttachEntity(DisguiseAPI.getEntityAttachmentId(), player.getEntityId(), false);
+
+        PacketEvents.getAPI().getPlayerManager().sendPacketSilently(player, attachHorse);
+        PacketEvents.getAPI().getPlayerManager().sendPacketSilently(player, attachPlayer);
     }
 
     public static void loadViewPreferences() {
@@ -552,18 +658,9 @@ public class DisguiseUtilities {
             }
         } catch (Exception e) {
             e.printStackTrace();
-            getLogger().warning("preferences.json has been deleted as its corrupt");
+            LibsDisguises.getInstance().getLogger().warning("preferences.json has been deleted as its corrupt");
             viewPreferences.delete();
         }
-    }
-
-    /**
-     * Returns the list of people who have /disguiseviewbar toggled
-     *
-     * @return
-     */
-    public static List<UUID> getViewBar() {
-        return viewBar;
     }
 
     public static void setPlayerVelocity(Player player) {
@@ -573,155 +670,6 @@ public class DisguiseUtilities {
 
     public static void clearPlayerVelocity(Player player) {
         velocityTimes.invalidate(player.getEntityId());
-    }
-
-    /**
-     * Returns the min required version, as in any older version will just not work.
-     */
-    public static String[] getProtocolLibRequiredVersion() {
-        // 1.12 base version
-        String[] requiredVersion = new String[]{"4.4.0"};
-
-        // If we are on 1.13, 1.14, 1.15
-        if (NmsVersion.v1_13.isSupported()) {
-            requiredVersion = new String[]{"4.5.1"};
-        }
-
-        // If we are on 1.16
-        if (NmsVersion.v1_16.isSupported()) {
-            requiredVersion = new String[]{"4.6.0"};
-        }
-
-        // If we are on 1.17, you need this release or dev build
-        // ProtocolLib is a little funny in that it provides next release version as the current version
-        if (NmsVersion.v1_17.isSupported()) {
-            requiredVersion = new String[]{"4.7.0", "528"};
-        }
-
-        // If you're on 1.18..
-        if (NmsVersion.v1_18.isSupported()) {
-            requiredVersion = new String[]{"4.8.0"};
-        }
-
-        // If you're on 1.19.1 or 1.19.2
-        if (NmsVersion.v1_19_R1.isSupported()) {
-            requiredVersion = new String[]{"5.0.0", "600"};
-        }
-
-        // If you're on 1.19.3
-        if (NmsVersion.v1_19_R2.isSupported()) {
-            requiredVersion = new String[]{"5.0.0", "630"};
-        }
-
-        // If you're on 1.19.4
-        if (NmsVersion.v1_19_R3.isSupported()) {
-            requiredVersion = new String[]{"5.0.0", "630"};
-        }
-
-        // If you're on 1.20.2
-        if (NmsVersion.v1_20_R2.isSupported()) {
-            requiredVersion = new String[]{"5.1.1", "669"};
-        }
-
-        // If you're on 1.20.4
-        if (NmsVersion.v1_20_R3.isSupported()) {
-            requiredVersion = new String[]{"5.2.0", "679"};
-        }
-
-        return requiredVersion;
-    }
-
-    public static boolean isProtocolLibOutdated() {
-        Plugin plugin = Bukkit.getPluginManager().getPlugin("ProtocolLib");
-
-        if (plugin == null) {
-            return true;
-        }
-
-        String plVersion;
-
-        try {
-            plVersion = plugin.getDescription().getVersion();
-        } catch (Throwable throwable) {
-            return true;
-        }
-
-        String[] reqVersion = getProtocolLibRequiredVersion();
-
-        // If this is also checking for a custom build, and PL has the custom build in..
-        // We run this check first as the 4.7.1 isn't out, and it'd always tell us to update otherwise.
-        if (reqVersion.length > 1 && plVersion.contains("-SNAPSHOT")) {
-            Matcher matcher = Pattern.compile("-SNAPSHOT-b?(\\d+)").matcher(plVersion);
-
-            // Just incase they're running a custom build?
-            if (!matcher.find()) {
-                return false;
-            }
-
-            try {
-                int buildNo = Integer.parseInt(matcher.group(1));
-
-                // Must be a custom build
-                if (buildNo < 100) {
-                    return false;
-                }
-
-                return buildNo < Integer.parseInt(reqVersion[1]);
-            } catch (Throwable ignored) {
-            }
-        }
-
-        return isOlderThan(reqVersion[0], plVersion);
-    }
-
-    public static File updateProtocolLib() throws Exception {
-        File dest = new File(LibsDisguises.getInstance().getDataFolder().getAbsoluteFile().getParentFile(), "ProtocolLib.jar");
-
-        try {
-            Method getFile = JavaPlugin.class.getDeclaredMethod("getFile");
-            getFile.setAccessible(true);
-
-            File theirFile = (File) getFile.invoke(ProtocolLibrary.getPlugin());
-            dest = new File(Bukkit.getUpdateFolderFile(), theirFile.getName());
-        } catch (Throwable throwable) {
-            if (Bukkit.getPluginManager().getPlugin("ProtocolLib") != null) {
-                List<File> plJars = ReflectionManager.getFilesByPlugin("ProtocolLib");
-                String fileName = "ProtocolLib.jar";
-
-                if (plJars.size() > 1) {
-                    // Its probably the first file regardless, Bukkit seems to use folder.listFiles() and use the order provided
-                    DisguiseUtilities.getLogger()
-                        .warning("You have multiple ProtocolLib jars in your plugin folder, you may need to update ProtocolLib yourself.");
-                }
-
-                if (!plJars.isEmpty()) {
-                    fileName = plJars.get(0).getName();
-                }
-
-                dest = new File(Bukkit.getUpdateFolderFile(), fileName);
-            }
-        }
-
-        if (!dest.exists()) {
-            dest.getParentFile().mkdirs();
-            dest.createNewFile();
-        }
-
-        // We're connecting to jenkins's API for ProtocolLib
-        URL url = new URL("https://ci.dmulloy2.net/job/ProtocolLib/lastSuccessfulBuild/artifact/build/libs/ProtocolLib.jar");
-
-        // Creating a connection
-        HttpURLConnection con = (HttpURLConnection) url.openConnection();
-        con.setRequestProperty("User-Agent", "libraryaddict/LibsDisguises");
-
-        // Get the input stream, what we receive
-        try (InputStream input = con.getInputStream()) {
-            Files.copy(input, dest.toPath(), StandardCopyOption.REPLACE_EXISTING);
-        }
-
-        setProtocollibUpdateDownloaded(true);
-
-        return dest;
     }
 
     /**
@@ -800,7 +748,7 @@ public class DisguiseUtilities {
             return;
         }
 
-        getLogger().info("Now saving disguises..");
+        LibsDisguises.getInstance().getLogger().info("Now saving disguises..");
         int disguisesSaved = 0;
 
         for (Set<TargetedDisguise> list : getDisguises().values()) {
@@ -822,11 +770,17 @@ public class DisguiseUtilities {
             }
         }
 
-        getLogger().info("Saved " + disguisesSaved + " disguises.");
+        LibsDisguises.getInstance().getLogger().info("Saved " + disguisesSaved + " disguises.");
     }
 
-    public static boolean hasGameProfile(String playername) {
-        return cachedNames.contains(playername.toLowerCase(Locale.ENGLISH));
+    public static boolean hasUserProfile(String playername) {
+        return hasUserProfile(playername, false);
+    }
+
+    public static boolean hasUserProfile(String playername, boolean checkSanityToo) {
+        String name = playername.toLowerCase(Locale.ENGLISH);
+
+        return cachedNames.contains(name) || (checkSanityToo && sanitySkinCacheMap.containsKey(name));
     }
 
     public static void createClonedDisguise(Player player, Entity toClone, Boolean[] options) {
@@ -970,7 +924,8 @@ public class DisguiseUtilities {
         } catch (Throwable e) {
             container.remove(savedDisguisesKey);
 
-            getLogger().severe("Malformed disguise for " + entity.getUniqueId() + "(" + data + "). Data has been removed.");
+            LibsDisguises.getInstance().getLogger()
+                .severe("Malformed disguise for " + entity.getUniqueId() + "(" + data + "). Data has been removed.");
             e.printStackTrace();
         }
 
@@ -1021,7 +976,7 @@ public class DisguiseUtilities {
 
             return disguises;
         } catch (Throwable e) {
-            getLogger().severe("Malformed disguise for " + entityUUID + "(" + cached + ")");
+            LibsDisguises.getInstance().getLogger().severe("Malformed disguise for " + entityUUID + "(" + cached + ")");
             e.printStackTrace();
         }
 
@@ -1038,13 +993,11 @@ public class DisguiseUtilities {
             for (int i = 0; i < disguises.length; i++) {
                 disguises[i] = DisguiseParser.parseDisguise(spl[i]);
             }
-        } else if (!java16) {
-            disguises = gson.fromJson(cached, Disguise[].class);
         } else {
             if (!criedOverJava16) {
                 criedOverJava16 = true;
-                getLogger().warning(
-                    "Failed to load a disguise using old format, this is due to Java 16 breaking stuff. This error will only print once.");
+                LibsDisguises.getInstance().getLogger()
+                    .warning("Failed to load a disguise using old format. This error will only print once.");
             }
 
             return new Disguise[0];
@@ -1096,15 +1049,18 @@ public class DisguiseUtilities {
                 synchronized (isNoInteract) {
                     Entity entity = disguise.getEntity();
 
-                    switch (entity.getType()) {
-                        case EXPERIENCE_ORB:
-                        case DROPPED_ITEM:
-                        case ARROW:
-                        case SPECTRAL_ARROW:
-                            isNoInteract.add(entity.getEntityId());
-                            break;
-                        default:
-                            break;
+                    if (getEntityItem() == entity.getType()) {
+                        isNoInteract.add(entity.getEntityId());
+                    } else {
+                        switch (entity.getType()) {
+                            case EXPERIENCE_ORB:
+                            case ARROW:
+                            case SPECTRAL_ARROW:
+                                isNoInteract.add(entity.getEntityId());
+                                break;
+                            default:
+                                break;
+                        }
                     }
                 }
 
@@ -1191,18 +1147,57 @@ public class DisguiseUtilities {
         runnable.runTaskLater(LibsDisguises.getInstance(), 20);
     }
 
-    public static void addGameProfile(String string, WrappedGameProfile gameProfile) {
+    public static void loadSanitySkinCache() throws IOException {
+        if (!sanitySkinCacheFile.exists()) {
+            return;
+        }
+
+        String cached = new String(Files.readAllBytes(sanitySkinCacheFile.toPath()));
+
+        LinkedHashMap<String, String> map = gson.fromJson(cached, LinkedHashMap.class);
+
+        sanitySkinCacheMap.putAll(map);
+    }
+
+    public static void saveSanitySkinCache() {
         try {
+            PrintWriter writer = new PrintWriter(sanitySkinCacheFile);
+            writer.write(getGson().toJson(sanitySkinCacheMap));
+            writer.close();
+        } catch (Exception ex) {
+            LibsDisguises.getInstance().getLogger()
+                .severe("Error while trying to save sanity.json for player skins, this shouldn't happen");
+            ex.printStackTrace();
+        }
+    }
+
+    public static void addUserProfile(String string, UserProfile userProfile) {
+        try {
+            if (userProfile == null) {
+                return;
+            }
+
             if (!profileCache.exists()) {
                 profileCache.mkdirs();
             }
 
-            File file = new File(profileCache, string.toLowerCase(Locale.ENGLISH));
+            String saveAs = string.toLowerCase(Locale.ENGLISH);
+            String serialized = getGson().toJson(userProfile);
+
+            // If using illegal name, or long name, or illegal character in name
+            if (saveAs.equalsIgnoreCase(sanitySkinCacheFile.getName()) || saveAs.length() > 32 || saveAs.matches(".*[^\\w.!@#$^+=-].*")) {
+                sanitySkinCacheMap.put(saveAs, serialized);
+                saveSanitySkinCache();
+
+                return;
+            }
+
+            File file = new File(profileCache, saveAs);
             PrintWriter writer = new PrintWriter(file);
-            writer.write(gson.toJson(gameProfile));
+            writer.write(gson.toJson(userProfile));
             writer.close();
 
-            cachedNames.add(string.toLowerCase(Locale.ENGLISH));
+            cachedNames.add(saveAs);
         } catch (StackOverflowError | Exception e) {
             e.printStackTrace();
         }
@@ -1296,14 +1291,14 @@ public class DisguiseUtilities {
 
             Set trackedPlayers = ReflectionManager.getClonedTrackedPlayers(entityTrackerEntry);
 
-            PacketContainer destroyPacket = getDestroyPacket(disguise.getEntity().getEntityId());
-
             for (Object p : trackedPlayers) {
                 Player player = (Player) ReflectionManager.getBukkitEntity(ReflectionManager.getPlayerFromPlayerConnection(p));
 
-                if (player == disguise.getEntity() || disguise.canSee(player)) {
-                    ProtocolLibrary.getProtocolManager().sendServerPacket(player, destroyPacket);
+                if (player != disguise.getEntity() && !disguise.canSee(player)) {
+                    continue;
                 }
+
+                PacketEvents.getAPI().getPlayerManager().sendPacket(player, getDestroyPacket(disguise.getEntity().getEntityId()));
             }
         } catch (Exception ex) {
             ex.printStackTrace();
@@ -1361,22 +1356,8 @@ public class DisguiseUtilities {
         return null;
     }
 
-    public static PacketContainer getDestroyPacket(int... ids) {
-        PacketContainer destroyPacket = new PacketContainer(Server.ENTITY_DESTROY);
-
-        if (NmsVersion.v1_17.isSupported()) {
-            List<Integer> ints = new ArrayList<>();
-
-            for (int id : ids) {
-                ints.add(id);
-            }
-
-            destroyPacket.getIntLists().write(0, ints);
-        } else {
-            destroyPacket.getIntegerArrays().write(0, ids);
-        }
-
-        return destroyPacket;
+    public static WrapperPlayServerDestroyEntities getDestroyPacket(int... ids) {
+        return new WrapperPlayServerDestroyEntities(ids);
     }
 
     public static TargetedDisguise getDisguise(Player observer, Entity entity) {
@@ -1411,10 +1392,24 @@ public class DisguiseUtilities {
         return new TargetedDisguise[0];
     }
 
-    public static WrappedGameProfile getGameProfile(String playerName) {
+    public static UserProfile getUserProfile(String playerName) {
         playerName = playerName.toLowerCase(Locale.ENGLISH);
 
-        if (!hasGameProfile(playerName)) {
+        String sanityVal = sanitySkinCacheMap.get(playerName);
+
+        if (sanityVal != null) {
+            try {
+                return gson.fromJson(sanitySkinCacheMap.get(playerName), UserProfile.class);
+            } catch (JsonSyntaxException ex) {
+                LibsDisguises.getInstance().getLogger().warning("UserProfile for " + playerName + " had invalid gson and has been deleted");
+                sanitySkinCacheMap.remove(playerName);
+                saveSanitySkinCache();
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+        }
+
+        if (!hasUserProfile(playerName)) {
             return null;
         }
 
@@ -1434,9 +1429,9 @@ public class DisguiseUtilities {
             String cached = reader.readLine();
             reader.close();
 
-            return gson.fromJson(cached, WrappedGameProfile.class);
+            return gson.fromJson(cached, UserProfile.class);
         } catch (JsonSyntaxException ex) {
-            DisguiseUtilities.getLogger().warning("Gameprofile " + file.getName() + " had invalid gson and has been deleted");
+            LibsDisguises.getInstance().getLogger().warning("UserProfile " + file.getName() + " had invalid gson and has been deleted");
             cachedNames.remove(playerName);
             file.delete();
         } catch (Exception e) {
@@ -1498,21 +1493,20 @@ public class DisguiseUtilities {
         return players;
     }
 
-    public static WrappedGameProfile getProfileFromMojang(final PlayerDisguise disguise) {
+    public static UserProfile getProfileFromMojang(final PlayerDisguise disguise) {
         final String nameToFetch = disguise.getSkin() != null ? disguise.getSkin() : disguise.getName();
 
-        return getProfileFromMojang(nameToFetch, gameProfile -> {
-            if (gameProfile == null || gameProfile.getProperties().isEmpty()) {
+        return getProfileFromMojang(nameToFetch, userProfile -> {
+            if (userProfile == null || userProfile.getTextureProperties().isEmpty()) {
                 return;
             }
 
-            if (DisguiseAPI.isDisguiseInUse(disguise) &&
-                (!gameProfile.getName().equals(disguise.getSkin() != null ? disguise.getSkin() : disguise.getName()) ||
-                    !gameProfile.getProperties().isEmpty())) {
-                disguise.setGameProfile(gameProfile);
-
-                DisguiseUtilities.refreshTrackers(disguise);
+            if (!disguise.isDisguiseInUse()) {
+                return;
             }
+
+            disguise.setUserProfile(userProfile);
+            DisguiseUtilities.refreshTrackers(disguise);
         }, DisguiseConfig.isContactMojangServers());
     }
 
@@ -1521,7 +1515,7 @@ public class DisguiseUtilities {
      * a lookup
      * using schedulers. The runnable is run once the GameProfile has been successfully dealt with
      */
-    public static WrappedGameProfile getProfileFromMojang(String playerName, LibsProfileLookup runnableIfCantReturn) {
+    public static UserProfile getProfileFromMojang(String playerName, LibsProfileLookup runnableIfCantReturn) {
         return getProfileFromMojang(playerName, (Object) runnableIfCantReturn, true);
     }
 
@@ -1530,16 +1524,15 @@ public class DisguiseUtilities {
      * a lookup
      * using schedulers. The runnable is run once the GameProfile has been successfully dealt with
      */
-    public static WrappedGameProfile getProfileFromMojang(String playerName, LibsProfileLookup runnableIfCantReturn,
-                                                          boolean contactMojang) {
+    public static UserProfile getProfileFromMojang(String playerName, LibsProfileLookup runnableIfCantReturn, boolean contactMojang) {
         return getProfileFromMojang(playerName, (Object) runnableIfCantReturn, contactMojang);
     }
 
-    private static WrappedGameProfile getProfileFromMojang(final String origName, final Object runnable, boolean contactMojang) {
+    private static UserProfile getProfileFromMojang(final String origName, final Object runnable, boolean contactMojang) {
         final String playerName = origName.toLowerCase(Locale.ENGLISH);
 
-        if (DisguiseConfig.isSaveGameProfiles() && hasGameProfile(playerName)) {
-            WrappedGameProfile profile = getGameProfile(playerName);
+        if (DisguiseConfig.isSaveGameProfiles() && hasUserProfile(playerName, true)) {
+            UserProfile profile = getUserProfile(playerName);
 
             if (profile != null) {
                 return profile;
@@ -1550,11 +1543,11 @@ public class DisguiseUtilities {
             final Player player = Bukkit.getPlayerExact(playerName);
 
             if (player != null) {
-                WrappedGameProfile gameProfile = ReflectionManager.getGameProfile(player);
+                UserProfile gameProfile = ReflectionManager.getUserProfile(player);
 
-                if (!gameProfile.getProperties().isEmpty()) {
+                if (!gameProfile.getTextureProperties().isEmpty()) {
                     if (DisguiseConfig.isSaveGameProfiles()) {
-                        addGameProfile(playerName, gameProfile);
+                        addUserProfile(playerName, gameProfile);
                     }
 
                     return gameProfile;
@@ -1571,11 +1564,11 @@ public class DisguiseUtilities {
 
                     Bukkit.getScheduler().runTaskAsynchronously(LibsDisguises.getInstance(), () -> {
                         try {
-                            final WrappedGameProfile gameProfile = lookupGameProfile(origName);
+                            final UserProfile gameProfile = lookupUserProfile(origName);
 
                             Bukkit.getScheduler().runTask(LibsDisguises.getInstance(), () -> {
                                 if (DisguiseConfig.isSaveGameProfiles()) {
-                                    addGameProfile(playerName, gameProfile);
+                                    addUserProfile(playerName, gameProfile);
                                 }
 
                                 synchronized (runnables) {
@@ -1595,7 +1588,8 @@ public class DisguiseUtilities {
                                 runnables.remove(playerName);
                             }
 
-                            getLogger().severe("Error when fetching " + playerName + "'s uuid from mojang: " + e.getMessage());
+                            LibsDisguises.getInstance().getLogger()
+                                .severe("Error when fetching " + playerName + "'s uuid from mojang: " + e.getMessage());
                         }
                     });
                 } else if (runnable != null && contactMojang) {
@@ -1606,7 +1600,15 @@ public class DisguiseUtilities {
             return null;
         }
 
-        return ReflectionManager.getGameProfile(null, origName);
+        return ReflectionManager.getUserProfile(null, origName);
+    }
+
+    public static MineSkinAPI getMineSkinAPI() {
+        if (mineSkinAPI == null) {
+            mineSkinAPI = new MineSkinAPI(null);
+        }
+
+        return mineSkinAPI;
     }
 
     /**
@@ -1614,7 +1616,7 @@ public class DisguiseUtilities {
      * a lookup
      * using schedulers. The runnable is run once the GameProfile has been successfully dealt with
      */
-    public static WrappedGameProfile getProfileFromMojang(String playerName, Runnable runnableIfCantReturn) {
+    public static UserProfile getProfileFromMojang(String playerName, Runnable runnableIfCantReturn) {
         return getProfileFromMojang(playerName, (Object) runnableIfCantReturn, true);
     }
 
@@ -1623,23 +1625,21 @@ public class DisguiseUtilities {
      * a lookup
      * using schedulers. The runnable is run once the GameProfile has been successfully dealt with
      */
-    public static WrappedGameProfile getProfileFromMojang(String playerName, Runnable runnableIfCantReturn, boolean contactMojang) {
+    public static UserProfile getProfileFromMojang(String playerName, Runnable runnableIfCantReturn, boolean contactMojang) {
         return getProfileFromMojang(playerName, (Object) runnableIfCantReturn, contactMojang);
     }
 
-    public static void init() {
-        fancyHiddenTabs = NmsVersion.v1_19_R2.isSupported() && Bukkit.getPluginManager().getPlugin("ViaBackwards") == null;
-        savedDisguisesKey = new NamespacedKey(LibsDisguises.getInstance(), "SavedDisguises");
-
+    public static void recreateGsonSerializer() {
         GsonBuilder gsonBuilder = new GsonBuilder();
 
         gsonBuilder.disableHtmlEscaping();
 
         gsonBuilder.registerTypeAdapter(MetaIndex.class, new SerializerMetaIndex());
-        gsonBuilder.registerTypeAdapter(WrappedGameProfile.class, new SerializerGameProfile());
-        gsonBuilder.registerTypeAdapter(WrappedBlockData.class, new SerializerWrappedBlockData());
-        gsonBuilder.registerTypeAdapter(WrappedChatComponent.class, new SerializerChatComponent());
-        gsonBuilder.registerTypeAdapter(WrappedParticle.class, new SerializerParticle());
+        gsonBuilder.registerTypeAdapter(UserProfile.class, new SerializerUserProfile());
+        gsonBuilder.registerTypeAdapter(GameProfile.class, new SerializerUserProfile());
+        gsonBuilder.registerTypeAdapter(WrappedBlockState.class, new SerializerWrappedBlockData());
+        gsonBuilder.registerTypeAdapter(Component.class, new SerializerChatComponent());
+        gsonBuilder.registerTypeAdapter(Particle.class, new SerializerParticle());
         gsonBuilder.registerTypeAdapter(PropertyMap.class, new PropertyMap.Serializer());
         gsonBuilder.registerTypeHierarchyAdapter(ItemStack.class, new SerializerItemStack());
 
@@ -1648,13 +1648,20 @@ public class DisguiseUtilities {
         }
 
         // Gotta register all the flag watcher stuff before I make this one
-        gsonBuilder.registerTypeAdapter(FlagWatcher.class, new SerializerFlagWatcher(gsonBuilder.create()));
-        gsonBuilder.registerTypeAdapter(Disguise.class, new SerializerDisguise());
         gsonBuilder.registerTypeAdapter(Optional.class,
             (JsonSerializer<Optional>) (optional, type, jsonSerializationContext) -> jsonSerializationContext.serialize(
                 "<optional>(" + jsonSerializationContext.serialize(optional.orElse(null)) + ")"));
 
         gson = gsonBuilder.create();
+    }
+
+    public static void init() {
+        fancyHiddenTabs = NmsVersion.v1_19_R2.isSupported() && Bukkit.getPluginManager().getPlugin("ViaBackwards") == null;
+        savedDisguisesKey = new NamespacedKey(LibsDisguises.getInstance(), "SavedDisguises");
+        selfDisguiseScaleNamespace = new NamespacedKey(LibsDisguises.getInstance(), "Self_Disguise_Scaling");
+        debuggingMode = LibsDisguises.getInstance().isDebuggingBuild();
+
+        recreateGsonSerializer();
 
         if (!profileCache.exists()) {
             File old = new File(profileCache.getParentFile(), "GameProfiles");
@@ -1667,6 +1674,16 @@ public class DisguiseUtilities {
         }
 
         cachedNames.addAll(Arrays.asList(profileCache.list()));
+        cachedNames.remove(sanitySkinCacheFile.getName());
+
+        try {
+            loadSanitySkinCache();
+        } catch (Exception e) {
+            LibsDisguises.getInstance().getLogger().severe(
+                "Error while trying to load sanity.json for saved skins, the invalid file will be overwritten when a new skin is " +
+                    "saved");
+            e.printStackTrace();
+        }
 
         invalidFile = LibsDisguises.getInstance().getFile().getName().toLowerCase(Locale.ENGLISH).matches(".*((crack)|(null)|(leak)).*");
 
@@ -1680,7 +1697,8 @@ public class DisguiseUtilities {
                     try {
                         savedDisguiseList.add(UUID.fromString(key));
                     } catch (Exception ex) {
-                        getLogger().warning("The file '" + key + "' does not belong in " + savedDisguises.getAbsolutePath());
+                        LibsDisguises.getInstance().getLogger()
+                            .warning("The file '" + key + "' does not belong in " + savedDisguises.getAbsolutePath());
                     }
                 }
             }
@@ -1725,11 +1743,10 @@ public class DisguiseUtilities {
         }
 
         try {
-            Method m = CompileMethods.class.getMethod("main", String[].class);
+            Method m = DisguiseMethods.class.getMethod("parseType", String.class);
 
-            if ((!m.isAnnotationPresent(CompileMethods.CompileMethodsIntfer.class) ||
-                m.getAnnotation(CompileMethods.CompileMethodsIntfer.class).user().matches("\\d+")) &&
-                !DisguiseConfig.doOutput(true, false).isEmpty()) {
+            if ((!m.isAnnotationPresent(CompileMethodsIntfer.class) ||
+                m.getAnnotation(CompileMethodsIntfer.class).user().matches("\\d+")) && !DisguiseConfig.doOutput(true, false).isEmpty()) {
                 DisguiseConfig.setViewDisguises(false);
             }
         } catch (NoSuchMethodException e) {
@@ -1740,6 +1757,9 @@ public class DisguiseUtilities {
 
         if (LibsPremium.isPremium()) {
             boolean fetch = true;
+            UsersData hard = getGson().fromJson(new String(Base64.getDecoder().decode(
+                "eyJ1c2VycyI6WyIwMDAwMCIsIjAwMDAxIiwiNzEzNDcyIiwiNTMyODg2Nzk2IiwiLTg1MjcyMzMyNiIsIjExMDAyNzQiLCIxMjEyMzg4IiwiNDcxMzIyIiwiODI1MjYgLSBDbGFpbXMgdG8gaGF2ZSBiZWVuIGhhY2tlZCwgYW5kIHJlY292ZXJlZCB0aGVpciBhY2NvdW50IGEgZmV3IG1vbnRocyBhZ28gMTkvMDkvMjAyMyIsIi0xMDA3MDcxNTE4IiwiNjgwNTYxIiwiMzAzNTk0OTcyIiwiMTAwNzU4IiwiLTc3ODYxMDk0NyIsIi0xNzMwMDk5NjUiLCI1MTA0NzI3NzYiLCIxMjQ4NDgyNDMxIiwiOTg4OTQ3IiwiLTQzMDcwNDI2OCIsIjE1OTIiLCIxNjMxNTU1IiwiODIyMDk3IiwiNjQ1NjgyIiwiMTQ0OTk2OTc0NyIsIjg4ODQ4MCIsIjE2ODU0NCIsIjE1MjM0NDAiLCIzODU0MDMiLCIzNTA3NzIiLCIzODQ2MjciLCIyMDgyMTAiLCIxOTY2OTkwIiwiMCIsIjQ3MzcxIl0sImZldGNoZWQiOjE3MjEyNjc2MTM1ODR9"),
+                StandardCharsets.UTF_8), UsersData.class);
 
             try {
                 if (DisguiseConfig.getData() != null) {
@@ -1747,7 +1767,7 @@ public class DisguiseUtilities {
                         getGson().fromJson(new String(Base64.getDecoder().decode(DisguiseConfig.getData()), StandardCharsets.UTF_8),
                             UsersData.class);
 
-                    if (data != null && data.fetched < System.currentTimeMillis() &&
+                    if (data != null && data.fetched > hard.fetched && data.fetched < System.currentTimeMillis() &&
                         data.fetched + TimeUnit.DAYS.toMillis(3) > System.currentTimeMillis()) {
                         doCheck(data.users);
                         fetch = false;
@@ -1764,6 +1784,11 @@ public class DisguiseUtilities {
                             String[] users = getBadUsers();
 
                             if (users != null) {
+                                // Too many trimmed
+                                if (users.length < hard.users.length / 2) {
+                                    users = hard.users;
+                                }
+
                                 UsersData data = new UsersData();
                                 data.users = users;
                                 data.fetched = System.currentTimeMillis();
@@ -1775,6 +1800,7 @@ public class DisguiseUtilities {
 
                             doCheck(users);
                         } catch (Exception ignored) {
+                            doCheck(hard.users);
                         }
                     }
                 }.runTaskAsynchronously(LibsDisguises.getInstance());
@@ -1801,7 +1827,7 @@ public class DisguiseUtilities {
                 continue;
             }
 
-            LibsDisguises.getInstance().getUpdateChecker().setGoSilent(true);
+            LibsDisguises.getInstance().getUpdateChecker().setQuiet(true);
         }
     }
 
@@ -1831,6 +1857,8 @@ public class DisguiseUtilities {
                 map = new Gson().fromJson(json, HashMap.class);
             }
 
+            con.disconnect();
+
             if (!map.containsKey("body")) {
                 return new String[0];
             }
@@ -1850,7 +1878,7 @@ public class DisguiseUtilities {
     /**
      * This is called on a thread as it is thread blocking
      */
-    public static WrappedGameProfile lookupGameProfile(String playerName) {
+    public static UserProfile lookupUserProfile(String playerName) {
         return ReflectionManager.getSkullBlob(ReflectionManager.grabProfileAddUUID(playerName));
     }
 
@@ -1869,8 +1897,8 @@ public class DisguiseUtilities {
         try {
             if (disguise.isDisguiseInUse() && disguise.getEntity() instanceof Player &&
                 disguise.getEntity().getName().equalsIgnoreCase(player)) {
-                PacketContainer destroyPacket = getDestroyPacket(DisguiseAPI.getSelfDisguiseId());
-                ProtocolLibrary.getProtocolManager().sendServerPacket((Player) disguise.getEntity(), destroyPacket);
+                WrapperPlayServerDestroyEntities destroyPacket = getDestroyPacket(DisguiseAPI.getSelfDisguiseId());
+                PacketEvents.getAPI().getPlayerManager().sendPacket(disguise.getEntity(), destroyPacket);
 
                 Bukkit.getScheduler().scheduleSyncDelayedTask(LibsDisguises.getInstance(), () -> {
                     try {
@@ -1880,15 +1908,15 @@ public class DisguiseUtilities {
                     }
                 }, 2);
             } else {
-                final Object entityTrackerEntry = ReflectionManager.getEntityTrackerEntry(disguise.getEntity());
+                final Object entityTracker = ReflectionManager.getEntityTracker(disguise.getEntity());
+                final Object entityTrackerEntry =
+                    !NmsVersion.v1_14.isSupported() ? entityTracker : ReflectionManager.getEntityTrackerEntry(disguise.getEntity());
 
                 if (entityTrackerEntry == null) {
                     return;
                 }
 
                 Set trackedPlayers = ReflectionManager.getClonedTrackedPlayers(entityTrackerEntry);
-
-                PacketContainer destroyPacket = getDestroyPacket(disguise.getEntity().getEntityId());
 
                 for (final Object o : trackedPlayers) {
                     Object p = ReflectionManager.getPlayerFromPlayerConnection(o);
@@ -1898,13 +1926,15 @@ public class DisguiseUtilities {
                         continue;
                     }
 
-                    ReflectionManager.clearEntityTracker(entityTrackerEntry, p);
+                    ReflectionManager.clearEntityTracker(entityTracker, p);
 
-                    ProtocolLibrary.getProtocolManager().sendServerPacket(pl, destroyPacket);
+                    WrapperPlayServerDestroyEntities destroyPacket = getDestroyPacket(disguise.getEntity().getEntityId());
+
+                    PacketEvents.getAPI().getPlayerManager().sendPacket(pl, destroyPacket);
 
                     Bukkit.getScheduler().scheduleSyncDelayedTask(LibsDisguises.getInstance(), () -> {
                         try {
-                            ReflectionManager.addEntityTracker(entityTrackerEntry, p);
+                            ReflectionManager.addEntityTracker(entityTracker, p);
                         } catch (Exception ex) {
                             ex.printStackTrace();
                         }
@@ -1929,9 +1959,9 @@ public class DisguiseUtilities {
 
         if (entity.isValid()) {
             try {
-                PacketContainer destroyPacket = getDestroyPacket(entity.getEntityId());
-
-                final Object entityTrackerEntry = ReflectionManager.getEntityTrackerEntry(entity);
+                final Object entityTracker = ReflectionManager.getEntityTracker(entity);
+                final Object entityTrackerEntry =
+                    NmsVersion.v1_14.isSupported() ? entityTracker : ReflectionManager.getEntityTrackerEntry(entity);
 
                 if (entityTrackerEntry != null) {
                     Set trackedPlayers = ReflectionManager.getClonedTrackedPlayers(entityTrackerEntry);
@@ -1943,13 +1973,15 @@ public class DisguiseUtilities {
                         if (player == entity) {
                             continue;
                         }
-                        ReflectionManager.clearEntityTracker(entityTrackerEntry, p);
 
-                        ProtocolLibrary.getProtocolManager().sendServerPacket(player, destroyPacket);
+                        ReflectionManager.clearEntityTracker(entityTracker, p);
+
+                        WrapperPlayServerDestroyEntities destroyPacket = getDestroyPacket(entity.getEntityId());
+                        PacketEvents.getAPI().getPlayerManager().sendPacket(player, destroyPacket);
 
                         Bukkit.getScheduler().scheduleSyncDelayedTask(LibsDisguises.getInstance(), () -> {
                             try {
-                                ReflectionManager.addEntityTracker(entityTrackerEntry, p);
+                                ReflectionManager.addEntityTracker(entityTracker, p);
                             } catch (Exception ex) {
                                 ex.printStackTrace();
                             }
@@ -1977,8 +2009,8 @@ public class DisguiseUtilities {
 
         try {
             if (selfDisguised.contains(disguise.getEntity().getUniqueId()) && disguise.isDisguiseInUse()) {
-                PacketContainer destroyPacket = getDestroyPacket(DisguiseAPI.getSelfDisguiseId());
-                ProtocolLibrary.getProtocolManager().sendServerPacket((Player) disguise.getEntity(), destroyPacket);
+                WrapperPlayServerDestroyEntities destroyPacket = getDestroyPacket(DisguiseAPI.getSelfDisguiseId());
+                PacketEvents.getAPI().getPlayerManager().sendPacket(disguise.getEntity(), destroyPacket);
 
                 removeSelfTracker((Player) disguise.getEntity());
 
@@ -1991,29 +2023,32 @@ public class DisguiseUtilities {
                 }, 2);
             }
 
-            final Object entityTrackerEntry = ReflectionManager.getEntityTrackerEntry(disguise.getEntity());
+            final Object entityTracker = ReflectionManager.getEntityTracker(disguise.getEntity());
+            final Object entityTrackerEntry =
+                !NmsVersion.v1_14.isSupported() ? entityTracker : ReflectionManager.getEntityTrackerEntry(disguise.getEntity());
 
             if (entityTrackerEntry != null) {
                 Set trackedPlayers = ReflectionManager.getClonedTrackedPlayers(entityTrackerEntry);
-                PacketContainer destroyPacket = getDestroyPacket(disguise.getEntity().getEntityId());
 
                 for (final Object o : trackedPlayers) {
                     Object p = ReflectionManager.getPlayerFromPlayerConnection(o);
                     Player player = (Player) ReflectionManager.getBukkitEntity(p);
 
-                    if (disguise.getEntity() != player && disguise.canSee(player)) {
-                        ReflectionManager.clearEntityTracker(entityTrackerEntry, p);
-
-                        ProtocolLibrary.getProtocolManager().sendServerPacket(player, destroyPacket);
-
-                        Bukkit.getScheduler().scheduleSyncDelayedTask(LibsDisguises.getInstance(), () -> {
-                            try {
-                                ReflectionManager.addEntityTracker(entityTrackerEntry, p);
-                            } catch (Exception ex) {
-                                ex.printStackTrace();
-                            }
-                        }, 2);
+                    if (disguise.getEntity() == player || !disguise.canSee(player)) {
+                        continue;
                     }
+                    ReflectionManager.clearEntityTracker(entityTracker, p);
+
+                    WrapperPlayServerDestroyEntities destroyPacket = getDestroyPacket(disguise.getEntity().getEntityId());
+                    PacketEvents.getAPI().getPlayerManager().sendPacket(player, destroyPacket);
+
+                    Bukkit.getScheduler().scheduleSyncDelayedTask(LibsDisguises.getInstance(), () -> {
+                        try {
+                            ReflectionManager.addEntityTracker(entityTracker, p);
+                        } catch (Exception ex) {
+                            ex.printStackTrace();
+                        }
+                    }, 2);
                 }
             }
         } catch (Exception ex) {
@@ -2049,16 +2084,25 @@ public class DisguiseUtilities {
         return false;
     }
 
-    public static void removeGameProfile(String string) {
-        cachedNames.remove(string.toLowerCase(Locale.ENGLISH));
+    public static void removeUserProfile(String string) {
+        string = string.toLowerCase(Locale.ENGLISH);
 
-        if (!profileCache.exists()) {
-            profileCache.mkdirs();
+        if (string.equalsIgnoreCase(sanitySkinCacheFile.getName())) {
+            return;
         }
 
-        File file = new File(profileCache, string.toLowerCase(Locale.ENGLISH));
+        if (sanitySkinCacheMap.containsKey(string)) {
+            sanitySkinCacheMap.remove(string);
+            saveSanitySkinCache();
+        }
 
-        file.delete();
+        if (!cachedNames.contains(string) || !profileCache.exists()) {
+            return;
+        }
+
+        cachedNames.remove(string);
+
+        new File(profileCache, string).delete();
     }
 
     public static void removeSelfDisguise(Disguise disguise) {
@@ -2077,7 +2121,7 @@ public class DisguiseUtilities {
 
         // Send a packet to destroy the fake entity
         try {
-            ProtocolLibrary.getProtocolManager().sendServerPacket(player, getDestroyPacket(ids));
+            PacketEvents.getAPI().getPlayerManager().sendPacket(player, getDestroyPacket(ids));
         } catch (Exception ex) {
             ex.printStackTrace();
         }
@@ -2090,15 +2134,13 @@ public class DisguiseUtilities {
 
         removeSelfTracker(player);
 
-        // Resend entity metadata else he will be invisible to themselves until its resent
+        // Resend entity metadata else they will be invisible to themselves until its resent
         try {
-            List<WatcherValue> list = WrappedDataWatcher.getEntityWatcher(player).getWatchableObjects().stream()
-                .map(v -> new WatcherValue(MetaIndex.getMetaIndex(PlayerWatcher.class, v.getIndex()), v.getRawValue()))
-                .collect(Collectors.toList());
+            List<EntityData> list = ReflectionManager.getEntityWatcher(player);
 
-            PacketContainer metaPacket = ReflectionManager.getMetadataPacket(player.getEntityId(), list);
+            WrapperPlayServerEntityMetadata metadata = new WrapperPlayServerEntityMetadata(player.getEntityId(), list);
 
-            ProtocolLibrary.getProtocolManager().sendServerPacket(player, metaPacket);
+            PacketEvents.getAPI().getPlayerManager().sendPacket(player, metadata);
         } catch (Exception ex) {
             ex.printStackTrace();
         }
@@ -2571,7 +2613,7 @@ public class DisguiseUtilities {
         return list.toArray(new String[0]);
     }
 
-    public static ItemStack getSlot(PlayerInventory equip, EquipmentSlot slot) {
+    public static ItemStack getSlot(PlayerInventory equip, org.bukkit.inventory.EquipmentSlot slot) {
         switch (slot) {
             case HAND:
                 return equip.getItemInMainHand();
@@ -2624,57 +2666,74 @@ public class DisguiseUtilities {
 
             ReflectionManager.addEntityToTrackedMap(entityTrackerEntry, player);
 
-            ProtocolManager manager = ProtocolLibrary.getProtocolManager();
+            Vector vel = player.getVelocity();
+            PacketWrapper spawn;
+
             // Send the player a packet with themselves being spawned
-            manager.sendServerPacket(player,
-                manager.createPacketConstructor(NmsVersion.v1_20_R2.isSupported() ? Server.SPAWN_ENTITY : Server.NAMED_ENTITY_SPAWN, player)
-                    .createPacket(player));
+            if (NmsVersion.v1_20_R2.isSupported()) {
+                spawn = new WrapperPlayServerSpawnEntity(player.getEntityId(), player.getUniqueId(), EntityTypes.PLAYER,
+                    SpigotConversionUtil.fromBukkitLocation(player.getLocation()), player.getLocation().getYaw(), 0,
+                    new Vector3d(vel.getX(), vel.getY(), vel.getZ()));
+            } else {
+                spawn = new WrapperPlayServerSpawnPlayer(player.getEntityId(), player.getUniqueId(),
+                    SpigotConversionUtil.fromBukkitLocation(player.getLocation()), new ArrayList<>());
+            }
 
-            List<WatcherValue> watcherList = WrappedDataWatcher.getEntityWatcher(player).getWatchableObjects().stream()
-                .map(v -> new WatcherValue(MetaIndex.getMetaIndex(PlayerWatcher.class, v.getIndex()), v.getRawValue()))
-                .collect(Collectors.toList());
+            PacketEvents.getAPI().getPlayerManager().sendPacket(player, spawn);
 
-            sendSelfPacket(player, ReflectionManager.getMetadataPacket(player.getEntityId(), watcherList));
+            sendSelfPacket(player,
+                new WrapperPlayServerEntityMetadata(DisguiseAPI.getSelfDisguiseId(), ReflectionManager.getEntityWatcher(player)));
 
             // Send the velocity packets
             if (ReflectionManager.isEntityTrackerMoving(entityTrackerEntry)) {
                 Vector velocity = player.getVelocity();
-                sendSelfPacket(player, manager.createPacketConstructor(Server.ENTITY_VELOCITY, player).createPacket(player));
+                sendSelfPacket(player, new WrapperPlayServerEntityVelocity(DisguiseAPI.getSelfDisguiseId(),
+                    new Vector3d(velocity.getX(), velocity.getY(), velocity.getZ())));
             }
 
-            // Why the hell would he even need this. Meh.
+            // Why would they even need this. Meh.
+            // Also, what's with the "entity id > id" check?
             if (player.getVehicle() != null && player.getEntityId() > player.getVehicle().getEntityId()) {
-                sendSelfPacket(player, manager.createPacketConstructor(Server.ATTACH_ENTITY, player, player.getVehicle())
-                    .createPacket(player, player.getVehicle()));
+                sendSelfPacket(player, new WrapperPlayServerAttachEntity(player.getEntityId(), player.getVehicle().getEntityId(), false));
             } else if (player.getPassenger() != null && player.getEntityId() > player.getPassenger().getEntityId()) {
-                sendSelfPacket(player, manager.createPacketConstructor(Server.ATTACH_ENTITY, player.getPassenger(), player)
-                    .createPacket(player.getPassenger(), player));
+                sendSelfPacket(player, new WrapperPlayServerAttachEntity(player.getPassenger().getEntityId(), player.getEntityId(), false));
             }
 
-            if (NmsVersion.v1_16.isSupported()) {
-                List<Pair<Object, Object>> list = new ArrayList<>();
+            if (DisguiseConfig.isEquipmentPacketsEnabled()) {
+                List<Equipment> list = new ArrayList<>();
 
                 for (EquipmentSlot slot : EquipmentSlot.values()) {
-                    list.add(Pair.of(ReflectionManager.createEnumItemSlot(slot),
-                        ReflectionManager.getNmsItem(player.getInventory().getItem(slot))));
+                    if (slot == EquipmentSlot.BODY && !NmsVersion.v1_20_R4.isSupported()) {
+                        continue;
+                    }
+
+                    list.add(new Equipment(slot, DisguiseUtilities.fromBukkitItemStack(getSlot(player.getInventory(), getSlot(slot)))));
                 }
 
-                sendSelfPacket(player, manager.createPacketConstructor(Server.ENTITY_EQUIPMENT, 0, list).createPacket(0, list));
-            } else {
-                for (EquipmentSlot slot : EquipmentSlot.values()) {
-                    Object item = ReflectionManager.getNmsItem(getSlot(player.getInventory(), slot));
-
-                    sendSelfPacket(player,
-                        manager.createPacketConstructor(Server.ENTITY_EQUIPMENT, 0, ReflectionManager.createEnumItemSlot(slot), item)
-                            .createPacket(player.getEntityId(), ReflectionManager.createEnumItemSlot(slot), item));
-                }
+                sendSelfPacket(player, new WrapperPlayServerEntityEquipment(player.getEntityId(), list));
             }
 
             // Resend any active potion effects
             for (PotionEffect potionEffect : player.getActivePotionEffects()) {
-                Object mobEffect = ReflectionManager.createMobEffect(potionEffect);
-                sendSelfPacket(player, manager.createPacketConstructor(Server.ENTITY_EFFECT, player.getEntityId(), mobEffect)
-                    .createPacket(player.getEntityId(), mobEffect));
+                BitSet bitSet = new BitSet(3);
+
+                if (NmsVersion.v1_19_R1.isSupported()) {
+                    bitSet.set(0, potionEffect.isAmbient());
+                }
+
+                if (NmsVersion.v1_18.isSupported()) {
+                    bitSet.set(1, potionEffect.hasParticles());
+                }
+
+                if (NmsVersion.v1_14.isSupported()) {
+                    bitSet.set(2, potionEffect.hasIcon());
+                }
+
+                byte[] array = bitSet.toByteArray();
+
+                sendSelfPacket(player, new WrapperPlayServerEntityEffect(player.getEntityId(),
+                    SpigotConversionUtil.fromBukkitPotionEffectType(potionEffect.getType()), potionEffect.getAmplifier(),
+                    potionEffect.getAmplifier(), array.length > 0 ? array[0] : 0));
             }
 
             if (DisguiseConfig.isDisableFriendlyInvisibles()) {
@@ -2687,6 +2746,30 @@ public class DisguiseUtilities {
         } catch (Exception ex) {
             ex.printStackTrace();
         }
+    }
+
+    public static boolean isTallDisguise(Disguise disguise) {
+        if (disguise.getType().isCustom()) {
+            return false;
+        }
+
+        DisguiseValues values = DisguiseValues.getDisguiseValues(disguise.getType());
+
+        if (values == null) {
+            return false;
+        }
+
+        FakeBoundingBox box = null;
+
+        if (disguise.isMobDisguise() && !((MobDisguise) disguise).isAdult()) {
+            box = values.getBabyBox();
+        }
+
+        if (box == null) {
+            box = values.getAdultBox();
+        }
+
+        return box != null && !(box.getY() <= 1.7D);
     }
 
     public static String getPlayerListName(Player player) {
@@ -2707,6 +2790,16 @@ public class DisguiseUtilities {
         return string.replaceAll("(<)\\\\(#[\\da-fA-F]{6}>)", "$1$2");
     }
 
+    public static void sendMessage(CommandSender sender, Component component) {
+        BaseComponent[] components = ComponentSerializer.parse(serialize(component));
+
+        if (components.length == 0) {
+            return;
+        }
+
+        sender.spigot().sendMessage(components);
+    }
+
     public static void sendMessage(CommandSender sender, String message) {
         if (message.isEmpty()) {
             return;
@@ -2715,78 +2808,26 @@ public class DisguiseUtilities {
         if (!NmsVersion.v1_16.isSupported()) {
             sender.sendMessage(message);
         } else {
-            BaseComponent[] components = getColoredChat(message);
-
-            sender.spigot().sendMessage(components);
+            sendMessage(sender, getAdventureChat(message));
         }
     }
 
     public static void sendMessage(CommandSender sender, LibsMsg msg, Object... args) {
         BaseComponent[] components = msg.getBase(args);
 
-        if (components.length > 0) {
-            sender.spigot().sendMessage(components);
+        if (components.length == 0) {
+            return;
         }
+
+        sender.spigot().sendMessage(components);
     }
 
     public static int[] getNumericVersion(String version) {
-        int[] v = new int[0];
-        for (String split : version.split("[.\\-]")) {
-            if (!split.matches("\\d+")) {
-                return v;
-            }
-
-            v = Arrays.copyOf(v, v.length + 1);
-            v[v.length - 1] = Integer.parseInt(split);
-        }
-
-        return v;
+        return PacketEventsUpdater.getNumericVersion(version);
     }
 
-    public static String getSimpleString(BaseComponent[] components) {
-        StringBuilder builder = new StringBuilder();
-
-        for (BaseComponent component : components) {
-            net.md_5.bungee.api.ChatColor color = component.getColorRaw();
-
-            if (color != null) {
-                String string = color.toString();
-
-                if (string.length() > 2) {
-                    builder.append("<#").append(string.substring(2).replace(net.md_5.bungee.api.ChatColor.COLOR_CHAR + "", "")).append(">");
-                } else {
-                    builder.append(string);
-                }
-            }
-
-            if (component.isBold()) {
-                builder.append(net.md_5.bungee.api.ChatColor.BOLD);
-            }
-
-            if (component.isItalic()) {
-                builder.append(net.md_5.bungee.api.ChatColor.ITALIC);
-            }
-
-            if (component.isUnderlined()) {
-                builder.append(net.md_5.bungee.api.ChatColor.UNDERLINE);
-            }
-
-            if (component.isStrikethrough()) {
-                builder.append(net.md_5.bungee.api.ChatColor.STRIKETHROUGH);
-            }
-
-            if (component.isObfuscated()) {
-                builder.append(net.md_5.bungee.api.ChatColor.MAGIC);
-            }
-
-            if (!(component instanceof TextComponent)) {
-                continue;
-            }
-
-            builder.append(quoteHex(((TextComponent) component).getText()));
-        }
-
-        return builder.toString();
+    public static String getSimpleString(Component component) {
+        return LegacyComponentSerializer.builder().build().serialize(component);
     }
 
     public static String translateAlternateColorCodes(String string) {
@@ -2797,8 +2838,37 @@ public class DisguiseUtilities {
         return ChatColor.translateAlternateColorCodes('&', string);
     }
 
+    public static String getName(ChatColor color) {
+        if (color == ChatColor.MAGIC) {
+            return "obfuscated";
+        }
+
+        return color.name().toLowerCase(Locale.ENGLISH);
+    }
+
     public static Component getAdventureChat(String message) {
-        return MiniMessage.get().parse(message);
+        // Hacky fix because some users use color codes and I probably do somewhere
+        // And adventure chat will break instead of letting people live in the past
+        for (ChatColor color : ChatColor.values()) {
+            message = message.replace("§" + color.getChar(), "<" + getName(color) + ">");
+        }
+
+        // The <underline> thing is because the proper syntax is <underlined> but the tag name is not consistant among several plugins
+        // including
+        // Essentials & Kyori
+        message = message.replace("<underline>", "<underlined>").replace("</underline>", "</underlined>");
+
+        String serialized = internalComponentSerializer.serialize(getMiniMessage().deserialize(message.replace("§", "&")));
+
+        return externalComponentSerializer.deserialize(serialized);
+    }
+
+    public static ItemStack toBukkitItemStack(com.github.retrooper.packetevents.protocol.item.ItemStack itemStack) {
+        return SpigotConversionUtil.toBukkitItemStack(itemStack);
+    }
+
+    public static com.github.retrooper.packetevents.protocol.item.ItemStack fromBukkitItemStack(ItemStack itemStack) {
+        return SpigotConversionUtil.fromBukkitItemStack(itemStack);
     }
 
     public static BaseComponent[] getColoredChat(String message) {
@@ -2809,47 +2879,250 @@ public class DisguiseUtilities {
         return ComponentSerializer.parse(serialize(getAdventureChat(message)));
     }
 
-    public static void sendProtocolLibUpdateMessage(CommandSender p, String version, String requiredProtocolLib) {
-        if (isProtocollibUpdateDownloaded()) {
+    public static void sendPacketEventsUpdateMessage(CommandSender p, String version, String requiredPacketEvents) {
+        // If we already automatically updated PE
+        if (LibsDisguises.getInstance().isPacketEventsUpdateDownloaded()) {
+            /*// Grace period of an absurd value, because some people leave the servers up this long
+            int daysGracePeriod = p.isOp() ? 14 : 31;
+
+            // If the grace period hasn't elapsed since server startup, don't send any messages
+            if (LibsDisguises.getInstance().getServerStarted() + TimeUnit.DAYS.toMillis(daysGracePeriod) > System.currentTimeMillis()) {
+                return;
+            }
+
             p.sendMessage(ChatColor.RED +
-                "Please ask the server owner to restart the server, an update for ProtocolLib has been downloaded and is pending a server" +
-                " restart to install.");
+                "[LibsDisguises] Please ask the server owner to restart the server, an update for PacketEvents has been downloaded and is
+                 pending a " +
+                "server restart to install.");*/
             return;
         }
 
-        p.sendMessage(ChatColor.RED + "Please ask the server owner to update ProtocolLib! You are running " + version +
-            " but the minimum version you should be on is " + requiredProtocolLib + "!");
-        p.sendMessage(ChatColor.RED + "https://ci.dmulloy2.net/job/ProtocolLib/lastSuccessfulBuild/artifact/build/libs/ProtocolLib.jar");
-        p.sendMessage(ChatColor.RED + "Or! Use " + ChatColor.DARK_RED + "/ld updatepl" + ChatColor.RED +
-            " - To update to the latest development build");
+        p.sendMessage(ChatColor.RED + "Please ask the server owner to update PacketEvents! You are running " + version +
+            " but the minimum version you should be on is " + requiredPacketEvents + "!");
+        p.sendMessage(ChatColor.RED +
+            "Release: https://modrinth.com/plugin/packetevents - Snapshots: https://ci.codemc.io/job/retrooper/job/packetevents/");
+        p.sendMessage(ChatColor.RED + "Or! Use " + ChatColor.DARK_RED + "/ld packetevents" + ChatColor.RED +
+            " - To update to the latest release from Modrinth");
         p.sendMessage(
-            ChatColor.DARK_GREEN + "This message is `kindly` provided by Lib's Disguises on repeat to all players due to the sheer " +
-                "number of people who don't see it");
+            ChatColor.DARK_GREEN + "This message is provided by Lib's Disguises to all players with the permission 'libsdisguises.update'");
     }
 
+    /**
+     * Returns if "theirVersion" is older than "requiredVersion"
+     * <p>
+     * "1.0" and "1.5" will return false
+     * "1.5" and "1.0" will return true
+     */
     public static boolean isOlderThan(String requiredVersion, String theirVersion) {
-        int[] required = getNumericVersion(requiredVersion);
-        int[] has = getNumericVersion(theirVersion);
-
-        for (int i = 0; i < Math.min(required.length, has.length); i++) {
-            if (required[i] == has[i]) {
-                continue;
-            }
-
-            return required[i] >= has[i];
-        }
-
-        return false;
+        return PacketEventsUpdater.isOlderThan(requiredVersion, theirVersion);
     }
 
-    public static Logger getLogger() {
-        return LibsDisguises.getInstance().getLogger();
+    @SneakyThrows
+    public static PacketWrapper unsafeClone(PacketPlaySendEvent eventForConstructor, PacketWrapper wrapper) {
+        // I'm not sure why PacketEvents makes it hard to clone another packet without manually handling every wrapper
+        PacketWrapper lastEvent = eventForConstructor.getLastUsedWrapper();
+        PacketWrapper clone = wrapper.getClass().getConstructor(PacketSendEvent.class).newInstance(eventForConstructor);
+        clone.copy(wrapper);
+        clone.buffer = null;
+
+        eventForConstructor.setLastUsedWrapper(lastEvent);
+
+        return clone;
+    }
+
+    public static PacketWrapper constructWrapper(PacketPlaySendEvent event) {
+        switch (event.getPacketType()) {
+            case SPAWN_ENTITY:
+                return new WrapperPlayServerSpawnEntity(event);
+            case SPAWN_PLAYER:
+                return new WrapperPlayServerSpawnPlayer(event);
+            case ATTACH_ENTITY:
+                return new WrapperPlayServerAttachEntity(event);
+            case ENTITY_RELATIVE_MOVE:
+                return new WrapperPlayServerEntityRelativeMove(event);
+            case ENTITY_RELATIVE_MOVE_AND_ROTATION:
+                return new WrapperPlayServerEntityRelativeMoveAndRotation(event);
+            case ENTITY_HEAD_LOOK:
+                return new WrapperPlayServerEntityHeadLook(event);
+            case PLAYER_POSITION_AND_LOOK:
+                return new WrapperPlayServerPlayerPositionAndLook(event);
+            case ENTITY_TELEPORT:
+                return new WrapperPlayServerEntityTeleport(event);
+            case ENTITY_ROTATION:
+                return new WrapperPlayServerEntityRotation(event);
+            case ENTITY_METADATA:
+                return new WrapperPlayServerEntityMetadata(event);
+            case ENTITY_EQUIPMENT:
+                return new WrapperPlayServerEntityEquipment(event);
+            case ENTITY_ANIMATION:
+                return new WrapperPlayServerEntityAnimation(event);
+            case ENTITY_VELOCITY:
+                return new WrapperPlayServerEntityVelocity(event);
+            case ENTITY_EFFECT:
+                return new WrapperPlayServerEntityEffect(event);
+            case ENTITY_MOVEMENT:
+                return new WrapperPlayServerEntityMovement(event);
+            case ENTITY_SOUND_EFFECT:
+                return new WrapperPlayServerEntitySoundEffect(event);
+            case ENTITY_STATUS:
+                return new WrapperPlayServerEntityStatus(event);
+            case UPDATE_ATTRIBUTES:
+                return new WrapperPlayServerUpdateAttributes(event);
+            case REMOVE_ENTITY_EFFECT:
+                return new WrapperPlayServerRemoveEntityEffect(event);
+            case SPAWN_LIVING_ENTITY:
+                return new WrapperPlayServerSpawnLivingEntity(event);
+            case SPAWN_PAINTING:
+                return new WrapperPlayServerSpawnPainting(event);
+            case SPAWN_EXPERIENCE_ORB:
+                return new WrapperPlayServerSpawnExperienceOrb(event);
+            case COLLECT_ITEM:
+                return new WrapperPlayServerCollectItem(event);
+            case DESTROY_ENTITIES:
+                return new WrapperPlayServerDestroyEntities(event);
+            default:
+                throw new IllegalStateException(event.getPacketType() + " wasn't in the enums");
+        }
+    }
+
+    public static Integer getEntityId(PacketWrapper wrapper) {
+        if (wrapper instanceof WrapperPlayServerSpawnPlayer) {
+            return ((WrapperPlayServerSpawnPlayer) wrapper).getEntityId();
+        } else if (wrapper instanceof WrapperPlayServerSpawnLivingEntity) {
+            return ((WrapperPlayServerSpawnLivingEntity) wrapper).getEntityId();
+        } else if (wrapper instanceof WrapperPlayServerSpawnEntity) {
+            return ((WrapperPlayServerSpawnEntity) wrapper).getEntityId();
+        } else if (wrapper instanceof WrapperPlayServerSpawnPainting) {
+            return ((WrapperPlayServerSpawnPainting) wrapper).getEntityId();
+        } else if (wrapper instanceof WrapperPlayServerSpawnExperienceOrb) {
+            return ((WrapperPlayServerSpawnExperienceOrb) wrapper).getEntityId();
+        } else if (wrapper instanceof WrapperPlayServerEntityMetadata) {
+            return ((WrapperPlayServerEntityMetadata) wrapper).getEntityId();
+        } else if (wrapper instanceof WrapperPlayServerEntityTeleport) {
+            return ((WrapperPlayServerEntityTeleport) wrapper).getEntityId();
+        } else if (wrapper instanceof WrapperPlayServerEntityHeadLook) {
+            return ((WrapperPlayServerEntityHeadLook) wrapper).getEntityId();
+        } else if (wrapper instanceof WrapperPlayServerEntityRotation) {
+            return ((WrapperPlayServerEntityRotation) wrapper).getEntityId();
+        } else if (wrapper instanceof WrapperPlayServerEntityVelocity) {
+            return ((WrapperPlayServerEntityVelocity) wrapper).getEntityId();
+        } else if (wrapper instanceof WrapperPlayServerEntityStatus) {
+            return ((WrapperPlayServerEntityStatus) wrapper).getEntityId();
+        } else if (wrapper instanceof WrapperPlayServerEntitySoundEffect) {
+            return ((WrapperPlayServerEntitySoundEffect) wrapper).getEntityId();
+        } else if (wrapper instanceof WrapperPlayServerUpdateAttributes) {
+            return ((WrapperPlayServerUpdateAttributes) wrapper).getEntityId();
+        } else if (wrapper instanceof WrapperPlayServerEntityEquipment) {
+            return ((WrapperPlayServerEntityEquipment) wrapper).getEntityId();
+        } else if (wrapper instanceof WrapperPlayServerEntityMovement) {
+            return ((WrapperPlayServerEntityMovement) wrapper).getEntityId();
+        } else if (wrapper instanceof WrapperPlayServerEntityAnimation) {
+            return ((WrapperPlayServerEntityAnimation) wrapper).getEntityId();
+        } else if (wrapper instanceof WrapperPlayServerEntityRelativeMove) {
+            return ((WrapperPlayServerEntityRelativeMove) wrapper).getEntityId();
+        } else if (wrapper instanceof WrapperPlayServerEntityRelativeMoveAndRotation) {
+            return ((WrapperPlayServerEntityRelativeMoveAndRotation) wrapper).getEntityId();
+        } else if (wrapper instanceof WrapperPlayServerRemoveEntityEffect) {
+            return ((WrapperPlayServerRemoveEntityEffect) wrapper).getEntityId();
+        } else if (wrapper instanceof WrapperPlayServerEntityEffect) {
+            return ((WrapperPlayServerEntityEffect) wrapper).getEntityId();
+        } else if (wrapper instanceof WrapperPlayServerAttachEntity) {
+            return ((WrapperPlayServerAttachEntity) wrapper).getAttachedId();
+        } else if (wrapper instanceof WrapperPlayServerCollectItem) {
+            return ((WrapperPlayServerCollectItem) wrapper).getCollectedEntityId();
+        } else {
+            throw new IllegalStateException("The packet " + wrapper.getClass() + " has no entity ID");
+        }
+    }
+
+    public static void writeSelfDisguiseId(int playerId, PacketWrapper wrapper) {
+        if (wrapper instanceof WrapperPlayServerSpawnPlayer) {
+            if (((WrapperPlayServerSpawnPlayer) wrapper).getEntityId() == playerId) {
+                ((WrapperPlayServerSpawnPlayer) wrapper).setEntityId(DisguiseAPI.getSelfDisguiseId());
+            }
+        } else if (wrapper instanceof WrapperPlayServerSpawnLivingEntity) {
+            if (((WrapperPlayServerSpawnLivingEntity) wrapper).getEntityId() == playerId) {
+                ((WrapperPlayServerSpawnLivingEntity) wrapper).setEntityId(DisguiseAPI.getSelfDisguiseId());
+            }
+        } else if (wrapper instanceof WrapperPlayServerSpawnEntity) {
+            if (((WrapperPlayServerSpawnEntity) wrapper).getEntityId() == playerId) {
+                ((WrapperPlayServerSpawnEntity) wrapper).setEntityId(DisguiseAPI.getSelfDisguiseId());
+            }
+        } else if (wrapper instanceof WrapperPlayServerSpawnPainting) {
+            if (((WrapperPlayServerSpawnPainting) wrapper).getEntityId() == playerId) {
+                ((WrapperPlayServerSpawnPainting) wrapper).setEntityId(DisguiseAPI.getSelfDisguiseId());
+            }
+        } else if (wrapper instanceof WrapperPlayServerSpawnExperienceOrb) {
+            if (((WrapperPlayServerSpawnExperienceOrb) wrapper).getEntityId() == playerId) {
+                ((WrapperPlayServerSpawnExperienceOrb) wrapper).setEntityId(DisguiseAPI.getSelfDisguiseId());
+            }
+        } else if (wrapper instanceof WrapperPlayServerEntityMetadata) {
+            if (((WrapperPlayServerEntityMetadata) wrapper).getEntityId() == playerId) {
+                ((WrapperPlayServerEntityMetadata) wrapper).setEntityId(DisguiseAPI.getSelfDisguiseId());
+            }
+        } else if (wrapper instanceof WrapperPlayServerEntityTeleport) {
+            if (((WrapperPlayServerEntityTeleport) wrapper).getEntityId() == playerId) {
+                ((WrapperPlayServerEntityTeleport) wrapper).setEntityId(DisguiseAPI.getSelfDisguiseId());
+            }
+        } else if (wrapper instanceof WrapperPlayServerEntityHeadLook) {
+            if (((WrapperPlayServerEntityHeadLook) wrapper).getEntityId() == playerId) {
+                ((WrapperPlayServerEntityHeadLook) wrapper).setEntityId(DisguiseAPI.getSelfDisguiseId());
+            }
+        } else if (wrapper instanceof WrapperPlayServerEntityRotation) {
+            if (((WrapperPlayServerEntityRotation) wrapper).getEntityId() == playerId) {
+                ((WrapperPlayServerEntityRotation) wrapper).setEntityId(DisguiseAPI.getSelfDisguiseId());
+            }
+        } else if (wrapper instanceof WrapperPlayServerEntityVelocity) {
+            if (((WrapperPlayServerEntityVelocity) wrapper).getEntityId() == playerId) {
+                ((WrapperPlayServerEntityVelocity) wrapper).setEntityId(DisguiseAPI.getSelfDisguiseId());
+            }
+        } else if (wrapper instanceof WrapperPlayServerEntityStatus) {
+            if (((WrapperPlayServerEntityStatus) wrapper).getEntityId() == playerId) {
+                ((WrapperPlayServerEntityStatus) wrapper).setEntityId(DisguiseAPI.getSelfDisguiseId());
+            }
+        } else if (wrapper instanceof WrapperPlayServerEntitySoundEffect) {
+            if (((WrapperPlayServerEntitySoundEffect) wrapper).getEntityId() == playerId) {
+                ((WrapperPlayServerEntitySoundEffect) wrapper).setEntityId(DisguiseAPI.getSelfDisguiseId());
+            }
+        } else if (wrapper instanceof WrapperPlayServerUpdateAttributes) {
+            if (((WrapperPlayServerUpdateAttributes) wrapper).getEntityId() == playerId) {
+                ((WrapperPlayServerUpdateAttributes) wrapper).setEntityId(DisguiseAPI.getSelfDisguiseId());
+            }
+        } else if (wrapper instanceof WrapperPlayServerEntityEquipment) {
+            if (((WrapperPlayServerEntityEquipment) wrapper).getEntityId() == playerId) {
+                ((WrapperPlayServerEntityEquipment) wrapper).setEntityId(DisguiseAPI.getSelfDisguiseId());
+            }
+        } else if (wrapper instanceof WrapperPlayServerEntityMovement) {
+            if (((WrapperPlayServerEntityMovement) wrapper).getEntityId() == playerId) {
+                ((WrapperPlayServerEntityMovement) wrapper).setEntityId(DisguiseAPI.getSelfDisguiseId());
+            }
+        } else if (wrapper instanceof WrapperPlayServerEntityAnimation) {
+            if (((WrapperPlayServerEntityAnimation) wrapper).getEntityId() == playerId) {
+                ((WrapperPlayServerEntityAnimation) wrapper).setEntityId(DisguiseAPI.getSelfDisguiseId());
+            }
+        } else if (wrapper instanceof WrapperPlayServerEntityRelativeMove) {
+            if (((WrapperPlayServerEntityRelativeMove) wrapper).getEntityId() == playerId) {
+                ((WrapperPlayServerEntityRelativeMove) wrapper).setEntityId(DisguiseAPI.getSelfDisguiseId());
+            }
+        } else if (wrapper instanceof WrapperPlayServerEntityRelativeMoveAndRotation) {
+            if (((WrapperPlayServerEntityRelativeMoveAndRotation) wrapper).getEntityId() == playerId) {
+                ((WrapperPlayServerEntityRelativeMoveAndRotation) wrapper).setEntityId(DisguiseAPI.getSelfDisguiseId());
+            }
+        } else if (wrapper instanceof WrapperPlayServerRemoveEntityEffect) {
+            if (((WrapperPlayServerRemoveEntityEffect) wrapper).getEntityId() == playerId) {
+                ((WrapperPlayServerRemoveEntityEffect) wrapper).setEntityId(DisguiseAPI.getSelfDisguiseId());
+            }
+        } else if (wrapper instanceof WrapperPlayServerEntityEffect) {
+            if (((WrapperPlayServerEntityEffect) wrapper).getEntityId() == playerId) {
+                ((WrapperPlayServerEntityEffect) wrapper).setEntityId(DisguiseAPI.getSelfDisguiseId());
+            }
+        }
     }
 
     /**
      * Method to send a packet to the self disguise, translate their entity ID to the fake id.
      */
-    private static void sendSelfPacket(final Player player, final PacketContainer packet) {
+    private static void sendSelfPacket(final Player player, final PacketWrapper packet) {
         final Disguise disguise = DisguiseAPI.getDisguise(player, player);
 
         // If disguised.
@@ -2857,27 +3130,29 @@ public class DisguiseUtilities {
             return;
         }
 
-        LibsPackets transformed = PacketsManager.getPacketsHandler().transformPacket(packet, disguise, player, player);
+        LibsPackets<?> transformed = PacketsManager.getPacketsHandler().transformPacket(packet, disguise, player, player);
 
         if (transformed.isUnhandled()) {
             transformed.addPacket(packet);
         }
 
-        LibsPackets newPackets = new LibsPackets(disguise);
+        LibsPackets<?> newPackets = new LibsPackets(transformed.getOriginalPacket(), disguise);
         newPackets.setSkinHandling(transformed.isSkinHandling());
 
-        for (PacketContainer p : transformed.getPackets()) {
-            p.getIntegers().write(0, DisguiseAPI.getSelfDisguiseId());
+        for (PacketWrapper p : transformed.getPackets()) {
+            writeSelfDisguiseId(player.getEntityId(), p);
 
             newPackets.addPacket(p);
         }
 
-        for (Map.Entry<Integer, ArrayList<PacketContainer>> entry : transformed.getDelayedPacketsMap().entrySet()) {
-            for (PacketContainer newPacket : entry.getValue()) {
-                if (newPacket.getType() != Server.PLAYER_INFO && newPacket.getType() != Server.ENTITY_DESTROY &&
-                    newPacket.getIntegers().read(0) == player.getEntityId()) {
-                    newPacket.getIntegers().write(0, DisguiseAPI.getSelfDisguiseId());
+        for (Map.Entry<Integer, ArrayList<PacketWrapper>> entry : transformed.getDelayedPacketsMap().entrySet()) {
+            for (PacketWrapper newPacket : entry.getValue()) {
+                if (newPacket.getPacketTypeData().getPacketType() == PacketType.Play.Server.PLAYER_INFO ||
+                    newPacket.getPacketTypeData().getPacketType() == PacketType.Play.Server.DESTROY_ENTITIES) {
+                    continue;
                 }
+
+                writeSelfDisguiseId(player.getEntityId(), newPacket);
 
                 newPackets.addDelayedPacket(newPacket, entry.getKey());
             }
@@ -2887,8 +3162,8 @@ public class DisguiseUtilities {
             LibsDisguises.getInstance().getSkinHandler().handlePackets(player, (PlayerDisguise) disguise, newPackets);
         }
 
-        for (PacketContainer p : newPackets.getPackets()) {
-            ProtocolLibrary.getProtocolManager().sendServerPacket(player, p, false);
+        for (PacketWrapper p : newPackets.getPackets()) {
+            PacketEvents.getAPI().getPlayerManager().sendPacket(player, p);
         }
 
         newPackets.sendDelayed(player);
@@ -2935,145 +3210,33 @@ public class DisguiseUtilities {
         }
     }
 
-    public static WrappedDataWatcher.Serializer getSerializer(MetaIndex index) {
-        if (index.getSerializer() != null) {
-            return index.getSerializer();
+    public static List<EntityData> createDatawatcher(List<WatcherValue> watcherValues) {
+        List<EntityData> list = new ArrayList<>();
+
+        for (WatcherValue value : watcherValues) {
+            list.add(value.getDataValue());
         }
 
-        if (index.getDefault() instanceof Optional) {
-            for (Field f : MetaIndex.class.getFields()) {
-                try {
-                    if (f.get(null) != index) {
-                        continue;
-                    }
-                } catch (IllegalAccessException e) {
-                    e.printStackTrace();
-                }
-
-                Type type = f.getGenericType();
-                Type opt = ((ParameterizedType) type).getActualTypeArguments()[0];
-
-                if (opt instanceof ParameterizedType) {
-                    Type val = ((ParameterizedType) opt).getActualTypeArguments()[0];
-
-                    return WrappedDataWatcher.Registry.get(ReflectionManager.getNmsClass((Class) val), true);
-                }
-            }
-        } else {
-            return WrappedDataWatcher.Registry.get(ReflectionManager.getNmsClass(index.getDefault().getClass()));
-        }
-
-        Object value = index.getDefault();
-
-        throw new IllegalArgumentException("Unable to find Serializer for " + value +
-            (value instanceof Optional && ((Optional) value).isPresent() ? " (" + ((Optional) value).get().getClass().getName() + ")" :
-                value instanceof Optional || value == null ? "" : " " + value.getClass().getName()) + "! Are you running " + "the latest " +
-            "version of " + "ProtocolLib?");
+        return list;
     }
 
-    public static String serialize(NbtBase base) {
-        return serialize(0, base);
-    }
-
-    private static String serialize(int depth, NbtBase base) {
-        switch (base.getType()) {
-            case TAG_COMPOUND:
-                StringBuilder builder = new StringBuilder();
-
-                builder.append("{");
-
-                for (String key : ((NbtCompound) base).getKeys()) {
-                    NbtBase<Object> nbt = ((NbtCompound) base).getValue(key);
-                    String val = serialize(depth + 1, nbt);
-
-                    // Skip root empty values
-                    if (depth == 0 && val.matches("0(\\.0)?")) {
-                        continue;
-                    }
-
-                    if (builder.length() != 1) {
-                        builder.append(",");
-                    }
-
-                    builder.append(key).append(":").append(val);
-                }
-
-                builder.append("}");
-
-                return builder.toString();
-            case TAG_LIST:
-                Collection col = ((NbtList) base).asCollection();
-
-                return "[" + StringUtils.join(col.stream().map(b -> serialize(depth + 1, (NbtBase) b)).toArray(), ",") + "]";
-            case TAG_BYTE_ARRAY:
-            case TAG_INT_ARRAY:
-            case TAG_LONG_ARRAY:
-                String[] str = new String[Array.getLength(base.getValue())];
-
-                for (int i = 0; i < str.length; i++) {
-                    str[i] = Array.get(base.getValue(), i).toString();//+ getChar(base.getType());
-                }
-
-                String c = "";
-
-                switch (base.getType()) {
-                    case TAG_BYTE_ARRAY:
-                        c = "B;";
-                        break;
-                    case TAG_INT_ARRAY:
-                        c = "I;";
-                        break;
-                    case TAG_LONG_ARRAY:
-                        c = "L;";
-                        break;
-                }
-
-                return "[" + c + StringUtils.join(str, ",") + "]";
-            case TAG_BYTE:
-            case TAG_INT:
-            case TAG_LONG:
-            case TAG_FLOAT:
-            case TAG_SHORT:
-            case TAG_DOUBLE:
-                return base.getValue().toString();// + getChar(base.getType());
-            case TAG_STRING:
-                String val = (String) base.getValue();
-
-                return "\"" + val.replace("\\", "\\\\").replace("\"", "\\\"") + "\"";
-            case TAG_END:
-                return "";
-            default:
-                throw new IllegalArgumentException();
-        }
-    }
-
-    public static WrappedDataWatcher createDatawatcher(List<WatcherValue> watcherValues) {
-        WrappedDataWatcher watcher = new WrappedDataWatcher();
-
-        watcherValues.forEach(v -> watcher.setObject(ReflectionManager.createDataWatcherObject(v.getMetaIndex(), v.getValue()),
-            ReflectionManager.convertInvalidMeta(v.getValue())));
-
-        return watcher;
-    }
-
-    public static List<WatcherValue> createSanitizedWatcherValues(Player player, WrappedDataWatcher entityWatcher,
-                                                                  FlagWatcher flagWatcher) {
+    public static List<WatcherValue> createSanitizedWatcherValues(Player player, Entity disguisedEntity, FlagWatcher flagWatcher) {
         if (!DisguiseConfig.isMetaPacketsEnabled()) {
             return flagWatcher.getWatchableObjects();
         }
 
-        return flagWatcher.convert(player, WatcherValue.getValues(entityWatcher));
+        return flagWatcher.convert(player, WatcherValue.getValues(disguisedEntity));
     }
 
-    public static byte getPitch(DisguiseType disguiseType, EntityType entityType, byte value) {
+    public static float getPitch(DisguiseType disguiseType, EntityType entityType, float value) {
         return getPitch(disguiseType, getPitch(DisguiseType.getType(entityType), value));
     }
 
-    public static byte getPitch(DisguiseType disguiseType, DisguiseType entityType, byte value) {
+    public static float getPitch(DisguiseType disguiseType, DisguiseType entityType, float value) {
         return getPitch(disguiseType, getPitch(entityType, value));
     }
 
-    public static byte getPitch(DisguiseType disguiseType, byte value) {
+    public static float getPitch(DisguiseType disguiseType, float value) {
         switch (disguiseType) {
             case BLOCK_DISPLAY:
             case ITEM_DISPLAY:
@@ -3081,30 +3244,34 @@ public class DisguiseUtilities {
             case WITHER_SKULL:
                 return value;
             case PHANTOM:
-                return (byte) -value;
+                return -value;
             default:
                 break;
         }
 
         if (disguiseType.isMisc()) {
-            return (byte) -value;
+            return -value;
         }
 
         return value;
     }
 
-    public static byte getYaw(DisguiseType disguiseType, EntityType entityType, byte value) {
+    public static float getYaw(DisguiseType disguiseType, EntityType entityType, float value) {
         return getYaw(disguiseType, getYaw(DisguiseType.getType(entityType), value));
     }
 
-    public static byte getYaw(DisguiseType disguiseType, DisguiseType entityType, byte value) {
+    public static float getYaw(DisguiseType disguiseType, DisguiseType entityType, float value) {
         return getYaw(disguiseType, getYaw(entityType, value));
+    }
+
+    public static Direction getHangingDirection(float yaw) {
+        return Direction.valueOf(BlockFace.values()[(int) Math.round(Math.abs((yaw + 720) % 360) / 90D) % 4].name());
     }
 
     /**
      * Add the yaw for the disguises
      */
-    public static byte getYaw(DisguiseType disguiseType, byte value) {
+    public static float getYaw(DisguiseType disguiseType, float value) {
         switch (disguiseType) {
             case MINECART:
             case MINECART_CHEST:
@@ -3113,32 +3280,105 @@ public class DisguiseUtilities {
             case MINECART_HOPPER:
             case MINECART_MOB_SPAWNER:
             case MINECART_TNT:
-                return (byte) (value + 64);
+                return value + 90;
             case BOAT:
             case ENDER_DRAGON:
             case WITHER_SKULL:
-                return (byte) (value - 128);
+                return value - 180;
             case ARROW:
             case SPECTRAL_ARROW:
-                return (byte) -value;
+                return -value;
             case PAINTING:
             case ITEM_FRAME:
-                return (byte) -(value + 128);
+            case GLOW_ITEM_FRAME:
+                return value + 180;
             case BLOCK_DISPLAY:
             case ITEM_DISPLAY:
             case TEXT_DISPLAY:
                 return value;
             default:
                 if (disguiseType.isMisc() && disguiseType != DisguiseType.ARMOR_STAND) {
-                    return (byte) (value - 64);
+                    return value - 90;
                 }
 
                 return value;
         }
     }
 
-    public static ArrayList<PacketContainer> getNamePackets(Disguise disguise, String[] internalOldNames) {
-        ArrayList<PacketContainer> packets = new ArrayList<>();
+    public static PacketWrapper<?> updateTablistVisibility(Player player, boolean visible) {
+        if (NmsVersion.v1_19_R2.isSupported()) {
+            // If visibility is false, and we can't just tell the client to hide it
+            if (!visible && !DisguiseUtilities.isFancyHiddenTabs()) {
+                return new WrapperPlayServerPlayerInfoRemove(player.getUniqueId());
+            }
+
+            WrapperPlayServerPlayerInfoUpdate.PlayerInfo info =
+                new WrapperPlayServerPlayerInfoUpdate.PlayerInfo(ReflectionManager.getUserProfile(player), visible, player.getPing(),
+                    SpigotConversionUtil.fromBukkitGameMode(player.getGameMode()),
+                    Component.text(DisguiseUtilities.getPlayerListName(player)), null);
+
+            return new WrapperPlayServerPlayerInfoUpdate(
+                DisguiseUtilities.isFancyHiddenTabs() ? WrapperPlayServerPlayerInfoUpdate.Action.UPDATE_LISTED :
+                    WrapperPlayServerPlayerInfoUpdate.Action.ADD_PLAYER, info);
+        }
+
+        // WrapperPlayServerPlayerInfo is for older than 1.19.3
+        WrapperPlayServerPlayerInfo.PlayerData playerInfo =
+            new WrapperPlayServerPlayerInfo.PlayerData(Component.text(DisguiseUtilities.getPlayerListName(player)),
+                ReflectionManager.getUserProfile(player), SpigotConversionUtil.fromBukkitGameMode(player.getGameMode()),
+                NmsVersion.v1_17.isSupported() ? player.getPing() : 0);
+
+        return new WrapperPlayServerPlayerInfo(
+            visible ? WrapperPlayServerPlayerInfo.Action.ADD_PLAYER : WrapperPlayServerPlayerInfo.Action.REMOVE_PLAYER, playerInfo);
+    }
+
+    public static PacketWrapper<?> createTablistAddPackets(PlayerDisguise disguise) {
+        if (!NmsVersion.v1_19_R2.isSupported()) {
+            return createTablistPacket(disguise, WrapperPlayServerPlayerInfo.Action.ADD_PLAYER);
+        }
+
+        WrapperPlayServerPlayerInfoUpdate.PlayerInfo info =
+            new WrapperPlayServerPlayerInfoUpdate.PlayerInfo(disguise.getUserProfile(), disguise.isDisplayedInTab(), 0,
+                com.github.retrooper.packetevents.protocol.player.GameMode.SURVIVAL, Component.text(disguise.getTablistName()), null);
+
+        return new WrapperPlayServerPlayerInfoUpdate(
+            EnumSet.of(WrapperPlayServerPlayerInfoUpdate.Action.ADD_PLAYER, WrapperPlayServerPlayerInfoUpdate.Action.UPDATE_DISPLAY_NAME,
+                WrapperPlayServerPlayerInfoUpdate.Action.UPDATE_LISTED), info);
+    }
+
+    public static PacketWrapper<?> createTablistPacket(PlayerDisguise disguise, WrapperPlayServerPlayerInfo.Action action) {
+        if (!NmsVersion.v1_19_R2.isSupported()) {
+            // WrapperPlayServerPlayerInfo is for older than 1.19.3
+            WrapperPlayServerPlayerInfo.PlayerData playerInfo =
+                new WrapperPlayServerPlayerInfo.PlayerData(Component.text(disguise.getTablistName()), disguise.getUserProfile(),
+                    com.github.retrooper.packetevents.protocol.player.GameMode.SURVIVAL, 0);
+
+            return new WrapperPlayServerPlayerInfo(action, playerInfo);
+        }
+
+        if (action == WrapperPlayServerPlayerInfo.Action.REMOVE_PLAYER) {
+            return new WrapperPlayServerPlayerInfoRemove(disguise.getUUID());
+        }
+
+        try {
+            // Why do we construct a new instance? Legacy code?
+            UserProfile profile =
+                ReflectionManager.getUserProfileWithThisSkin(disguise.getUserProfile().getUUID(), disguise.getProfileName(),
+                    disguise.getUserProfile());
+            WrapperPlayServerPlayerInfoUpdate.PlayerInfo info =
+                new WrapperPlayServerPlayerInfoUpdate.PlayerInfo(profile, disguise.isDisplayedInTab(), 0,
+                    com.github.retrooper.packetevents.protocol.player.GameMode.SURVIVAL, Component.text(disguise.getTablistName()), null);
+
+            return new WrapperPlayServerPlayerInfoUpdate(WrapperPlayServerPlayerInfoUpdate.Action.valueOf(action.name()), info);
+        } catch (Exception ex) {
+            ex.printStackTrace();
+        }
+
+        return null;
+    }
+
+    public static List<PacketWrapper<?>> getNamePackets(Disguise disguise, Player viewer, String[] internalOldNames) {
+        ArrayList<PacketWrapper<?>> packets = new ArrayList<>();
         String[] newNames = (disguise instanceof PlayerDisguise && !((PlayerDisguise) disguise).isNameVisible()) ? new String[0] :
             reverse(disguise.getMultiName());
         int[] standIds = disguise.getArmorstandIds();
@@ -3154,7 +3394,7 @@ public class DisguiseUtilities {
 
                 if (!disguise.isPlayerDisguise() || ((PlayerDisguise) disguise).isNameVisible()) {
                     if (disguise.getMultiName().length > 1) {
-                        getLogger().info("Multiline names is a premium feature, sorry!");
+                        LibsDisguises.getInstance().getLogger().info("Multiline names is a premium feature, sorry!");
                     }
                 }
             }
@@ -3165,8 +3405,18 @@ public class DisguiseUtilities {
             destroyIds = Arrays.copyOfRange(standIds, newNames.length, internalOldNames.length);
         }
 
+        Location loc = disguise.getEntity().getLocation();
         // Don't need to offset with DisguiseUtilities.getYModifier, because that's a visual offset and not an actual location offset
         double height = disguise.getHeight() + disguise.getWatcher().getYModifier() + disguise.getWatcher().getNameYModifier();
+        double heightScale = disguise.getNameHeightScale();
+        double startingY = loc.getY() + (height * heightScale);
+        startingY += (DisguiseUtilities.getNameSpacing() * (heightScale - 1)) * 0.35;
+        // TODO If we support text display, there will not be any real features unfortunately
+        // Text Display is too "jumpy" so it'd require the display to be mounted on another entity, which probably means more packets
+        // than before
+        // With the only upside that we can customize how the text is displayed, such as visible through blocks, background color, etc
+        // But then there's also the issue of how we expose that
+        boolean useTextDisplay = false;// LibsDisguises.getInstance().isDebuggingBuild() && NmsVersion.v1_19_R3.isSupported();
 
         for (int i = 0; i < newNames.length; i++) {
             if (i < internalOldNames.length) {
@@ -3174,67 +3424,81 @@ public class DisguiseUtilities {
                     continue;
                 }
 
-                Object name;
+                EntityData data;
 
                 if (NmsVersion.v1_13.isSupported()) {
-                    name = Optional.of(
-                        WrappedChatComponent.fromJson(ComponentSerializer.toString(DisguiseUtilities.getColoredChat(newNames[i]))));
+                    data = ReflectionManager.getEntityData(MetaIndex.ENTITY_CUSTOM_NAME, Optional.of(getAdventureChat(newNames[i])), true);
                 } else {
-                    name = ChatColor.translateAlternateColorCodes('&', newNames[i]);
+                    data = ReflectionManager.getEntityData(MetaIndex.ENTITY_CUSTOM_NAME_OLD,
+                        ChatColor.translateAlternateColorCodes('&', newNames[i]), true);
                 }
 
-                MetaIndex index = NmsVersion.v1_13.isSupported() ? MetaIndex.ENTITY_CUSTOM_NAME : MetaIndex.ENTITY_CUSTOM_NAME_OLD;
+                WrapperPlayServerEntityMetadata packet = new WrapperPlayServerEntityMetadata(standIds[i], Collections.singletonList(data));
 
-                PacketContainer metaPacket = ReflectionManager.getMetadataPacket(standIds[i],
-                    Collections.singletonList(new WatcherValue(index, ReflectionManager.convertInvalidMeta(name))));
-
-                packets.add(metaPacket);
+                packets.add(packet);
             } else if (newNames[i].isEmpty()) {
                 destroyIds = Arrays.copyOf(destroyIds, destroyIds.length + 1);
                 destroyIds[destroyIds.length - 1] = standIds[i];
             } else {
-                PacketContainer packet =
-                    new PacketContainer(NmsVersion.v1_19_R1.isSupported() ? Server.SPAWN_ENTITY : Server.SPAWN_ENTITY_LIVING);
-                packet.getIntegers().write(0, standIds[i]);
-                packet.getModifier().write(2,
-                    NmsVersion.v1_19_R1.isSupported() ? DisguiseType.ARMOR_STAND.getNmsEntityType() : DisguiseType.ARMOR_STAND.getTypeId());
+                List<EntityData> watcherValues = new ArrayList<>();
 
-                packet.getUUIDs().write(0, UUID.randomUUID());
-
-                Location loc = disguise.getEntity().getLocation();
-
-                packet.getDoubles().write(0, loc.getX());
-                packet.getDoubles().write(1, loc.getY() + height + (0.28 * i));
-                packet.getDoubles().write(2, loc.getZ());
-                packets.add(packet);
-
-                List<WatcherValue> watcherValues = new ArrayList<>();
-
-                for (MetaIndex index : MetaIndex.getMetaIndexes(ArmorStandWatcher.class)) {
+                for (MetaIndex index : MetaIndex.getMetaIndexes(useTextDisplay ? TextDisplayWatcher.class : ArmorStandWatcher.class)) {
                     Object val = index.getDefault();
 
                     if (index == MetaIndex.ENTITY_META) {
                         val = (byte) 32;
                     } else if (index == MetaIndex.ARMORSTAND_META) {
                         val = (byte) 19;
-                    } else if (index == MetaIndex.ENTITY_CUSTOM_NAME) {
-                        val = Optional.of(
-                            WrappedChatComponent.fromJson(ComponentSerializer.toString(DisguiseUtilities.getColoredChat(newNames[i]))));
                     } else if (index == MetaIndex.ENTITY_CUSTOM_NAME_OLD) {
                         val = ChatColor.translateAlternateColorCodes('&', newNames[i]);
                     } else if (index == MetaIndex.ENTITY_CUSTOM_NAME_VISIBLE) {
-                        val = true;
+                        // Unfortunately text display custom name visible won't work as expected either
+                        // It's either always hidden, or always showing if true
+                        val = true; //disguise.isPlayerDisguise() || disguise.getWatcher().isCustomNameVisible();
+                    }
+                    // Armorstand specific
+                    else if (index == MetaIndex.ENTITY_CUSTOM_NAME) {
+                        val = Optional.of(getAdventureChat(newNames[i]));
+                    }
+                    // Text Display specific
+                    else if (index == MetaIndex.TEXT_DISPLAY_TEXT) {
+                        val = getAdventureChat(newNames[i]);
+                    } else if (index == MetaIndex.DISPLAY_SCALE && !disguise.isMiscDisguise()) {
+                        Double scale = viewer == disguise.getEntity() ? disguise.getSelfDisguiseTallScaleMax() :
+                            ((LivingWatcher) disguise.getWatcher()).getScale();
+                        // TODO Expand this out
+                    } else if (index == MetaIndex.DISPLAY_BILLBOARD_RENDER_CONSTRAINTS) {
+                        val = (byte) ReflectionManager.enumOrdinal(Display.Billboard.CENTER);
                     }
 
-                    watcherValues.add(new WatcherValue(index, val));
+                    watcherValues.add(new WatcherValue(index, val, true).getDataValue());
+                }
+
+                double y = startingY + (getNameSpacing() * i);
+
+                if (useTextDisplay) {
+                    WrapperPlayServerSpawnEntity spawnEntity =
+                        new WrapperPlayServerSpawnEntity(standIds[i], Optional.of(UUID.randomUUID()), EntityTypes.TEXT_DISPLAY,
+                            new Vector3d(loc.getX(), y, loc.getZ()), 0f, 0f, 0f, 0, Optional.of(Vector3d.zero()));
+
+                    packets.add(spawnEntity);
+                } else if (NmsVersion.v1_19_R1.isSupported()) {
+                    WrapperPlayServerSpawnEntity spawnEntity =
+                        new WrapperPlayServerSpawnEntity(standIds[i], Optional.of(UUID.randomUUID()), EntityTypes.ARMOR_STAND,
+                            new Vector3d(loc.getX(), y, loc.getZ()), 0f, 0f, 0f, 0, Optional.of(Vector3d.zero()));
+
+                    packets.add(spawnEntity);
+                } else {
+                    WrapperPlayServerSpawnLivingEntity spawnEntity =
+                        new WrapperPlayServerSpawnLivingEntity(standIds[i], UUID.randomUUID(), EntityTypes.ARMOR_STAND,
+                            new com.github.retrooper.packetevents.protocol.world.Location(loc.getX(), y, loc.getZ(), 0f, 0f), 0f,
+                            Vector3d.zero(), watcherValues);
+
+                    packets.add(spawnEntity);
                 }
 
                 if (NmsVersion.v1_15.isSupported()) {
-                    PacketContainer metaPacket = ReflectionManager.getMetadataPacket(standIds[i], watcherValues);
-
-                    packets.add(metaPacket);
-                } else {
-                    packet.getDataWatcherModifier().write(0, createDatawatcher(watcherValues));
+                    packets.add(new WrapperPlayServerEntityMetadata(standIds[i], watcherValues));
                 }
             }
         }
@@ -3244,6 +3508,42 @@ public class DisguiseUtilities {
         }
 
         return packets;
+    }
+
+    /**
+     * Grabs the scale of the entity as if the LibsDisguises: attributes did not exist
+     */
+    public static double getActualEntityScale(Entity entity) {
+        if (!(entity instanceof LivingEntity)) {
+            return 1;
+        }
+
+        AttributeInstance attribute = ((LivingEntity) entity).getAttribute(Attribute.GENERIC_SCALE);
+
+        double scale = attribute.getBaseValue();
+        double modifiedScale = 0;
+
+        for (int operation = 0; operation < 3; operation++) {
+            if (operation == 1) {
+                modifiedScale = scale;
+            }
+
+            for (AttributeModifier modifier : attribute.getModifiers()) {
+                if (modifier.getKey().equals(getSelfDisguiseScaleNamespace())) {
+                    continue;
+                }
+
+                if (modifier.getOperation() == AttributeModifier.Operation.ADD_NUMBER && operation == 0) {
+                    scale += modifier.getAmount();
+                } else if (modifier.getOperation() == AttributeModifier.Operation.ADD_SCALAR && operation == 1) {
+                    modifiedScale += scale * modifier.getAmount();
+                } else if (modifier.getOperation() == AttributeModifier.Operation.MULTIPLY_SCALAR_1 && operation == 2) {
+                    modifiedScale *= 1 + modifier.getAmount();
+                }
+            }
+        }
+
+        return modifiedScale;
     }
 
     public static Disguise getDisguise(Player observer, int entityId) {
@@ -3303,7 +3603,7 @@ public class DisguiseUtilities {
         Entity entity = disguise.getEntity();
         double yMod = 0;
 
-        if (disguise.getType() != DisguiseType.PLAYER && entity.getType() == EntityType.DROPPED_ITEM) {
+        if (disguise.getType() != DisguiseType.PLAYER && entity.getType() == getEntityItem()) {
             yMod -= 0.13;
         }
 
@@ -3323,13 +3623,13 @@ public class DisguiseUtilities {
             case MINECART_HOPPER:
             case MINECART_MOB_SPAWNER:
             case MINECART_TNT:
-                switch (entity.getType()) {
-                    case MINECART:
-                    case MINECART_CHEST:
-                    case MINECART_FURNACE:
-                    case MINECART_HOPPER:
-                    case MINECART_MOB_SPAWNER:
-                    case MINECART_TNT:
+                switch (entity.getType().name()) {
+                    case "MINECART":
+                    case "MINECART_CHEST":
+                    case "MINECART_FURNACE":
+                    case "MINECART_HOPPER":
+                    case "MINECART_MOB_SPAWNER":
+                    case "MINECART_TNT":
                         return yMod;
                     default:
                         return yMod + 0.4;
@@ -3355,5 +3655,85 @@ public class DisguiseUtilities {
         }
 
         return yMod;
+    }
+
+    /**
+     * Gets equipment from this entity based on the slot given.
+     *
+     * @param slot
+     * @return null if the disguisedEntity is not an instance of a living entity
+     */
+    public static ItemStack getEquipment(org.bukkit.inventory.EquipmentSlot slot, Entity disguisedEntity) {
+        if (!(disguisedEntity instanceof LivingEntity)) {
+            return null;
+        }
+
+        switch (slot) {
+            case HAND:
+                return ((LivingEntity) disguisedEntity).getEquipment().getItemInMainHand();
+            case OFF_HAND:
+                return ((LivingEntity) disguisedEntity).getEquipment().getItemInOffHand();
+            case FEET:
+                return ((LivingEntity) disguisedEntity).getEquipment().getBoots();
+            case LEGS:
+                return ((LivingEntity) disguisedEntity).getEquipment().getLeggings();
+            case CHEST:
+                return ((LivingEntity) disguisedEntity).getEquipment().getChestplate();
+            case HEAD:
+                return ((LivingEntity) disguisedEntity).getEquipment().getHelmet();
+            default:
+                if (NmsVersion.v1_20_R4.isSupported() && slot == org.bukkit.inventory.EquipmentSlot.BODY) {
+                    // Paper will throw an error, which is valid, but annoying
+                    if (disguisedEntity instanceof Player) {
+                        return new ItemStack(Material.AIR);
+                    }
+
+                    return ((LivingEntity) disguisedEntity).getEquipment().getItem(slot);
+                }
+
+                return null;
+        }
+    }
+
+    public static org.bukkit.inventory.EquipmentSlot getSlot(com.github.retrooper.packetevents.protocol.player.EquipmentSlot slot) {
+        switch (slot) {
+            case BOOTS:
+                return org.bukkit.inventory.EquipmentSlot.FEET;
+            case HELMET:
+                return org.bukkit.inventory.EquipmentSlot.HEAD;
+            case LEGGINGS:
+                return org.bukkit.inventory.EquipmentSlot.LEGS;
+            case MAIN_HAND:
+                return org.bukkit.inventory.EquipmentSlot.HAND;
+            case OFF_HAND:
+                return org.bukkit.inventory.EquipmentSlot.OFF_HAND;
+            case CHEST_PLATE:
+                return org.bukkit.inventory.EquipmentSlot.CHEST;
+            case BODY:
+                return org.bukkit.inventory.EquipmentSlot.BODY;
+            default:
+                throw new IllegalStateException("Unknown equip slot " + slot);
+        }
+    }
+
+    public static com.github.retrooper.packetevents.protocol.player.EquipmentSlot getSlot(org.bukkit.inventory.EquipmentSlot slot) {
+        switch (slot) {
+            case FEET:
+                return com.github.retrooper.packetevents.protocol.player.EquipmentSlot.BOOTS;
+            case OFF_HAND:
+                return com.github.retrooper.packetevents.protocol.player.EquipmentSlot.OFF_HAND;
+            case HEAD:
+                return com.github.retrooper.packetevents.protocol.player.EquipmentSlot.HELMET;
+            case HAND:
+                return com.github.retrooper.packetevents.protocol.player.EquipmentSlot.MAIN_HAND;
+            case CHEST:
+                return com.github.retrooper.packetevents.protocol.player.EquipmentSlot.CHEST_PLATE;
+            case LEGS:
+                return com.github.retrooper.packetevents.protocol.player.EquipmentSlot.LEGGINGS;
+            case BODY:
+                return com.github.retrooper.packetevents.protocol.player.EquipmentSlot.BODY;
+            default:
+                throw new IllegalStateException("Unknown equip slot " + slot);
+        }
     }
 }

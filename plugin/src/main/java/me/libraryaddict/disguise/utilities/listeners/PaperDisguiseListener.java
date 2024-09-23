@@ -2,7 +2,6 @@ package me.libraryaddict.disguise.utilities.listeners;
 
 import com.destroystokyo.paper.event.entity.EntityAddToWorldEvent;
 import com.destroystokyo.paper.event.entity.EntityRemoveFromWorldEvent;
-import me.libraryaddict.disguise.DisguiseAPI;
 import me.libraryaddict.disguise.DisguiseConfig;
 import me.libraryaddict.disguise.LibsDisguises;
 import me.libraryaddict.disguise.disguisetypes.Disguise;
@@ -18,9 +17,6 @@ import org.bukkit.scheduler.BukkitRunnable;
 
 import java.util.Random;
 
-/**
- * Created by libraryaddict on 20/05/2020.
- */
 public class PaperDisguiseListener implements Listener {
     private Boolean isWeird;
     private int count;

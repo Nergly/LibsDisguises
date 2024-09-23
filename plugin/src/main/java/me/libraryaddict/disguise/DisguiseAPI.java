@@ -1,8 +1,7 @@
 package me.libraryaddict.disguise;
 
-import com.comphenix.protocol.wrappers.WrappedDataWatcher;
-import com.comphenix.protocol.wrappers.WrappedGameProfile;
-import com.comphenix.protocol.wrappers.WrappedWatchableObject;
+import com.github.retrooper.packetevents.protocol.entity.data.EntityData;
+import com.github.retrooper.packetevents.protocol.player.UserProfile;
 import me.libraryaddict.disguise.disguisetypes.Disguise;
 import me.libraryaddict.disguise.disguisetypes.DisguiseType;
 import me.libraryaddict.disguise.disguisetypes.FlagWatcher;
@@ -75,14 +74,14 @@ public class DisguiseAPI {
 
             configuration.save(disguisesFile);
 
-            DisguiseUtilities.getLogger().info("Added new Custom Disguise " + disguiseName);
+            LibsDisguises.getInstance().getLogger().info("Added new Custom Disguise " + disguiseName);
         } catch (IOException e) {
             e.printStackTrace();
         }
     }
 
-    public static void addGameProfile(String profileName, WrappedGameProfile gameProfile) {
-        DisguiseUtilities.addGameProfile(profileName, gameProfile);
+    public static void addGameProfile(String profileName, UserProfile gameProfile) {
+        DisguiseUtilities.addUserProfile(profileName, gameProfile);
     }
 
     public static String getRawCustomDisguise(String disguiseName) {
@@ -102,6 +101,7 @@ public class DisguiseAPI {
             return null;
         }
 
+        // No need to call clone, it was parsed from raw by invoking this method
         return disguise.getValue();
     }
 
@@ -145,20 +145,18 @@ public class DisguiseAPI {
             }
         }
 
-        WrappedDataWatcher dataWatcher = WrappedDataWatcher.getEntityWatcher(entity);
-
-        for (WrappedWatchableObject obj : dataWatcher.getWatchableObjects()) {
-            MetaIndex index = MetaIndex.getMetaIndex(watcher.getClass(), obj.getIndex());
+        for (EntityData data : ReflectionManager.getEntityWatcher(entity)) {
+            MetaIndex index = MetaIndex.getMetaIndex(watcher.getClass(), data.getIndex());
 
             if (index == null) {
                 continue;
             }
 
-            if (index.getDefault() == obj.getValue() || index.getDefault() == obj.getRawValue()) {
+            if (index.getDefault() == data.getValue()) {
                 continue;
             }
 
-            watcher.setUnsafeData(index, obj.getValue());
+            watcher.setUnsafeData(index, data.getValue());
 
             // Update the meta for 0, otherwise boolean be weird
             if (index == MetaIndex.ENTITY_META) {

@@ -3,6 +3,7 @@ package me.libraryaddict.disguise.disguisetypes.watchers;
 import me.libraryaddict.disguise.disguisetypes.Disguise;
 import me.libraryaddict.disguise.disguisetypes.MetaIndex;
 import me.libraryaddict.disguise.utilities.reflection.NmsVersion;
+import me.libraryaddict.disguise.utilities.reflection.annotations.MethodDescription;
 import me.libraryaddict.disguise.utilities.reflection.annotations.NmsRemovedIn;
 
 import java.util.Optional;
@@ -20,9 +21,9 @@ public abstract class AbstractHorseWatcher extends AgeableWatcher {
     }
 
     @NmsRemovedIn(NmsVersion.v1_19_R3)
+    @MethodDescription
     public void setOwner(UUID uuid) {
-        setData(MetaIndex.HORSE_OWNER, Optional.of(uuid));
-        sendData(MetaIndex.HORSE_OWNER);
+        sendData(MetaIndex.HORSE_OWNER, Optional.of(uuid));
     }
 
     /**
@@ -34,6 +35,7 @@ public abstract class AbstractHorseWatcher extends AgeableWatcher {
         return isHorseFlag(REPRODUCED);
     }
 
+    @MethodDescription(noVisibleDifference = true)
     public void setReproduced(boolean reproduced) {
         setHorseFlag(REPRODUCED, reproduced);
     }
@@ -47,6 +49,7 @@ public abstract class AbstractHorseWatcher extends AgeableWatcher {
         return isHorseFlag(GRAZING);
     }
 
+    @MethodDescription("Is the horse's head lowered?")
     public void setGrazing(boolean grazing) {
         setHorseFlag(GRAZING, grazing);
     }
@@ -60,6 +63,7 @@ public abstract class AbstractHorseWatcher extends AgeableWatcher {
         return isHorseFlag(EATING);
     }
 
+    @MethodDescription("Is the horse's mouth open?")
     public void setEating(boolean mouthOpen) {
         setHorseFlag(EATING, mouthOpen);
     }
@@ -68,6 +72,7 @@ public abstract class AbstractHorseWatcher extends AgeableWatcher {
         return isHorseFlag(REARING);
     }
 
+    @MethodDescription("Is the horse rearing in the air?")
     public void setRearing(boolean rear) {
         setHorseFlag(REARING, rear);
     }
@@ -76,6 +81,7 @@ public abstract class AbstractHorseWatcher extends AgeableWatcher {
         return isHorseFlag(SADDLED);
     }
 
+    @MethodDescription("Is the horse wearing a saddle?")
     public void setSaddled(boolean saddled) {
         setHorseFlag(SADDLED, saddled);
     }
@@ -84,6 +90,7 @@ public abstract class AbstractHorseWatcher extends AgeableWatcher {
         return isHorseFlag(TAMED);
     }
 
+    @MethodDescription("Is the horse tamed?")
     public void setTamed(boolean tamed) {
         setHorseFlag(TAMED, tamed);
     }
@@ -100,11 +107,11 @@ public abstract class AbstractHorseWatcher extends AgeableWatcher {
         byte j = getData(MetaIndex.HORSE_META);
 
         if (flag) {
-            setData(MetaIndex.HORSE_META, (byte) (j | i));
+            j = (byte) (j | i);
         } else {
-            setData(MetaIndex.HORSE_META, (byte) (j & ~i));
+            j = (byte) (j & ~i);
         }
 
-        sendData(MetaIndex.HORSE_META);
+        sendData(MetaIndex.HORSE_META, j);
     }
 }

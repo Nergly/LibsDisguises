@@ -23,16 +23,14 @@ public class ItemDisplayWatcher extends DisplayWatcher {
             item = new ItemStack(Material.AIR);
         }
 
-        setData(MetaIndex.ITEM_DISPLAY_ITEMSTACK, item);
-        sendData(MetaIndex.ITEM_DISPLAY_ITEMSTACK);
+        sendData(MetaIndex.ITEM_DISPLAY_ITEMSTACK, item);
     }
 
     public ItemDisplay.ItemDisplayTransform getItemDisplayTransform() {
-        return ItemDisplay.ItemDisplayTransform.values()[getData(MetaIndex.ITEM_DISPLAY_TRANSFORM)];
+        return getData(MetaIndex.ITEM_DISPLAY_TRANSFORM);
     }
 
     public void setItemDisplayTransform(ItemDisplay.ItemDisplayTransform display) {
-        setData(MetaIndex.ITEM_DISPLAY_TRANSFORM, (byte) display.ordinal());
-        sendData(MetaIndex.ITEM_DISPLAY_TRANSFORM);
+        sendData(MetaIndex.ITEM_DISPLAY_TRANSFORM, display);
     }
 }

@@ -1,32 +1,38 @@
 package me.libraryaddict.disguise.disguisetypes.watchers;
 
+import me.libraryaddict.disguise.DisguiseConfig;
 import me.libraryaddict.disguise.disguisetypes.Disguise;
 import me.libraryaddict.disguise.disguisetypes.MetaIndex;
+import me.libraryaddict.disguise.utilities.parser.RandomDefaultValue;
+import me.libraryaddict.disguise.utilities.reflection.ReflectionManager;
+import me.libraryaddict.disguise.utilities.reflection.annotations.MethodDescription;
 import org.bukkit.entity.Axolotl;
 
-/**
- * Created by libraryaddict on 15/06/2021.
- */
 public class AxolotlWatcher extends AgeableWatcher {
     public AxolotlWatcher(Disguise disguise) {
         super(disguise);
+
+        if (DisguiseConfig.isRandomDisguises()) {
+            setVariant(ReflectionManager.randomEnum(Axolotl.Variant.class));
+        }
     }
 
     public boolean isPlayingDead() {
         return getData(MetaIndex.AXOLOTL_PLAYING_DEAD);
     }
 
+    @MethodDescription("Is this Axolotl playing dead?")
     public void setPlayingDead(boolean playingDead) {
-        setData(MetaIndex.AXOLOTL_PLAYING_DEAD, playingDead);
-        sendData(MetaIndex.AXOLOTL_PLAYING_DEAD);
+        sendData(MetaIndex.AXOLOTL_PLAYING_DEAD, playingDead);
     }
 
     public Axolotl.Variant getVariant() {
-        return Axolotl.Variant.values()[getData(MetaIndex.AXOLOTL_VARIANT)];
+        return getData(MetaIndex.AXOLOTL_VARIANT);
     }
 
+    @RandomDefaultValue
+    @MethodDescription("What variant of Axolotl is this?")
     public void setVariant(Axolotl.Variant variant) {
-        setData(MetaIndex.AXOLOTL_VARIANT, variant.ordinal());
-        sendData(MetaIndex.AXOLOTL_VARIANT);
+        sendData(MetaIndex.AXOLOTL_VARIANT, variant);
     }
 }

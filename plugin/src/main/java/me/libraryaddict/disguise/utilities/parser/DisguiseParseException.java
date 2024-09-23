@@ -4,9 +4,6 @@ import lombok.Getter;
 import me.libraryaddict.disguise.utilities.translations.LibsMsg;
 import org.bukkit.command.CommandSender;
 
-/**
- * Created by libraryaddict on 7/09/2018.
- */
 @Getter
 public class DisguiseParseException extends Exception {
     private static final long serialVersionUID = 1276971370793124510L;
@@ -18,7 +15,11 @@ public class DisguiseParseException extends Exception {
     }
 
     public DisguiseParseException(LibsMsg message, String... params) {
-        super(message.getVanillaFormat(params));
+        super(message.get((Object[]) params));
+
+        if (message != null) {
+            message.validateArgCount(params);
+        }
 
         this.msg = message;
         this.params = params;

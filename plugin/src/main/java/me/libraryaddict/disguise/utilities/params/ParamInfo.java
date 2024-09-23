@@ -2,6 +2,7 @@ package me.libraryaddict.disguise.utilities.params;
 
 import me.libraryaddict.disguise.utilities.parser.DisguiseParseException;
 import me.libraryaddict.disguise.utilities.translations.TranslateType;
+import org.bukkit.Keyed;
 
 import java.util.Arrays;
 import java.util.HashSet;
@@ -10,9 +11,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-/**
- * Created by libraryaddict on 7/09/2018.
- */
 public abstract class ParamInfo<T> {
     private final Class paramClass;
     private final String descriptiveName;
@@ -44,8 +42,23 @@ public abstract class ParamInfo<T> {
 
         this.possibleValues = new LinkedHashMap<>();
 
-        for (T anEnum : possibleValues) {
-            this.getValues().put(((Enum) anEnum).name(), anEnum);
+        // Pointless to trigger an error if it doesn't matter
+        if (possibleValues.length == 0) {
+            return;
+        }
+
+        if (possibleValues[0] instanceof Enum) {
+            for (T anEnum : possibleValues) {
+                this.getValues().put(((Enum) anEnum).name(), anEnum);
+            }
+        } else if (possibleValues[0] instanceof Keyed) {
+            for (T anEnum : possibleValues) {
+                this.getValues().put(((Keyed) anEnum).getKey().getKey(), anEnum);
+            }
+        } else {
+            throw new IllegalArgumentException(
+                "The param of class " + paramClass + " and provided possible values of class " + possibleValues[0].getClass() +
+                    " is not an enum and is not an instanceof Keyed");
         }
     }
 
@@ -108,7 +121,7 @@ public abstract class ParamInfo<T> {
         return 1;
     }
 
-    public boolean hasValues() {
+    public boolean hasTabCompletion() {
         return getValues() != null;
     }
 

@@ -1,11 +1,13 @@
 package me.libraryaddict.disguise.disguisetypes;
 
+import me.libraryaddict.disguise.disguisetypes.watchers.DisplayWatcher;
 import me.libraryaddict.disguise.disguisetypes.watchers.DroppedItemWatcher;
 import me.libraryaddict.disguise.disguisetypes.watchers.FallingBlockWatcher;
 import me.libraryaddict.disguise.disguisetypes.watchers.PaintingWatcher;
 import me.libraryaddict.disguise.disguisetypes.watchers.SplashPotionWatcher;
 import me.libraryaddict.disguise.utilities.DisguiseValues;
 import me.libraryaddict.disguise.utilities.reflection.NmsVersion;
+import me.libraryaddict.disguise.utilities.reflection.ReflectionManager;
 import org.bukkit.Art;
 import org.bukkit.Material;
 import org.bukkit.entity.Entity;
@@ -73,6 +75,15 @@ public class MiscDisguise extends TargetedDisguise {
         return values.getAdultBox().getY();
     }
 
+    @Override
+    public double getNameHeightScale() {
+        if (getWatcher() instanceof DisplayWatcher) {
+            return ((DisplayWatcher) getWatcher()).getScale().y;
+        }
+
+        return 1;
+    }
+
     private void apply(int id, ItemStack itemStack) {
         createDisguise();
 
@@ -82,7 +93,10 @@ public class MiscDisguise extends TargetedDisguise {
         switch (getType()) {
             // The only disguises which should use a custom data.
             case PAINTING:
-                ((PaintingWatcher) getWatcher()).setArt(Art.values()[Math.max(0, id) % Art.values().length]);
+                // Should've been removed ages ago, but finally breaks in 1.21 where the enum change means this is not an enum anymore
+                if (!NmsVersion.v1_21_R1.isSupported()) {
+                    ((PaintingWatcher) getWatcher()).setArt(ReflectionManager.fromEnum(Art.class, id));
+                }
                 break;
             case FALLING_BLOCK:
                 ((FallingBlockWatcher) getWatcher()).setBlock(itemStack);
@@ -145,17 +159,6 @@ public class MiscDisguise extends TargetedDisguise {
             default:
                 return data;
         }
-    }
-
-    /**
-     * Only falling block should use this
-     */
-    public int getId() {
-        if (getType() == DisguiseType.FALLING_BLOCK) {
-            return ((FallingBlockWatcher) getWatcher()).getBlock().getType().ordinal();
-        }
-
-        return id;
     }
 
     @Override

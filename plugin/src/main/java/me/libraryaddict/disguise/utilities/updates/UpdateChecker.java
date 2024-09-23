@@ -4,9 +4,8 @@ import lombok.Getter;
 import lombok.Setter;
 import me.libraryaddict.disguise.DisguiseConfig;
 import me.libraryaddict.disguise.LibsDisguises;
-import me.libraryaddict.disguise.utilities.DisguiseUtilities;
 import me.libraryaddict.disguise.utilities.LibsPremium;
-import me.libraryaddict.disguise.utilities.plugin.PluginInformation;
+import me.libraryaddict.disguise.utilities.plugin.LibsDisgInfo;
 import me.libraryaddict.disguise.utilities.translations.LibsMsg;
 import org.bukkit.Bukkit;
 import org.bukkit.command.CommandSender;
@@ -25,7 +24,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 public class UpdateChecker {
     private final long started = System.currentTimeMillis();
     @Getter
-    private PluginInformation lastDownload;
+    private LibsDisgInfo lastDownload;
     private final AtomicBoolean downloading = new AtomicBoolean(false);
     @Getter
     private DisguiseUpdate update;
@@ -35,7 +34,7 @@ public class UpdateChecker {
     private String[] updateMessage = new String[0];
     @Getter
     @Setter
-    private boolean goSilent;
+    private boolean quiet;
 
     public boolean isServerLatestVersion() {
         return isOnLatestUpdate(false);
@@ -88,7 +87,7 @@ public class UpdateChecker {
     }
 
     public void notifyUpdate(CommandSender player) {
-        if (isGoSilent() || !DisguiseConfig.isNotifyUpdate() || !player.hasPermission("libsdisguises.update")) {
+        if (isQuiet() || !DisguiseConfig.isNotifyUpdate() || !player.hasPermission("libsdisguises.update")) {
             return;
         }
 
@@ -100,7 +99,7 @@ public class UpdateChecker {
             player.sendMessage(updateMessage);
         } else {
             for (String s : updateMessage) {
-                DisguiseUtilities.getLogger().info(s);
+                LibsDisguises.getInstance().getLogger().info(s);
             }
         }
     }
@@ -110,7 +109,7 @@ public class UpdateChecker {
             DisguiseUpdate oldUpdate = getUpdate();
 
             updateMessage = new String[0];
-            boolean alreadySilent = isGoSilent();
+            boolean alreadySilent = isQuiet();
 
             doUpdateCheck();
 
@@ -120,7 +119,7 @@ public class UpdateChecker {
 
             notifyUpdate(Bukkit.getConsoleSender());
 
-            if (isGoSilent() ? !alreadySilent : DisguiseConfig.isAutoUpdate()) {
+            if (isQuiet() ? !alreadySilent : DisguiseConfig.isAutoUpdate()) {
                 // Update message changed by download
                 grabJarDownload(getUpdate().getDownload());
 
@@ -133,11 +132,11 @@ public class UpdateChecker {
                 }
             });
         } catch (Exception ex) {
-            DisguiseUtilities.getLogger().warning(String.format("Failed to check for update: %s", ex.getMessage()));
+            LibsDisguises.getInstance().getLogger().warning(String.format("Failed to check for update: %s", ex.getMessage()));
         }
     }
 
-    public PluginInformation doUpdate() {
+    public LibsDisgInfo doUpdate() {
         // If no update on file, or more than 6 hours hold. Check for update
         if (getUpdate() == null || getUpdate().getFetched().before(new Date(System.currentTimeMillis() - TimeUnit.HOURS.toMillis(6)))) {
             doUpdateCheck();
@@ -200,13 +199,14 @@ public class UpdateChecker {
         return null;
     }
 
-    private PluginInformation grabJarDownload(String urlString) {
+    private LibsDisgInfo grabJarDownload(String urlString) {
         downloading.set(true);
 
         File dest = new File(Bukkit.getUpdateFolderFile(), LibsDisguises.getInstance().getFile().getName());
 
-        if (!isGoSilent()) {
-            DisguiseUtilities.getLogger().info("Now downloading build of Lib's Disguises from " + urlString + " to " + dest.getName());
+        if (!isQuiet()) {
+            LibsDisguises.getInstance().getLogger()
+                .info("Now downloading build of Lib's Disguises from " + urlString + " to " + dest.getName());
         }
 
         if (dest.exists()) {
@@ -227,11 +227,13 @@ public class UpdateChecker {
                 Files.copy(input, dest.toPath(), StandardCopyOption.REPLACE_EXISTING);
             }
 
-            if (!isGoSilent()) {
-                DisguiseUtilities.getLogger().info("Download success!");
+            con.disconnect();
+
+            if (!isQuiet()) {
+                LibsDisguises.getInstance().getLogger().info("Download success!");
             }
 
-            PluginInformation result = LibsPremium.getInformation(dest);
+            LibsDisgInfo result = LibsPremium.getInformation(dest);
             lastDownload = result;
 
             updateMessage = new String[]{LibsMsg.UPDATE_SUCCESS.get(),
@@ -242,7 +244,7 @@ public class UpdateChecker {
         } catch (Exception ex) {
             // Failed, set the last download back to previous build
             dest.delete();
-            DisguiseUtilities.getLogger().warning("Failed to download snapshot build.");
+            LibsDisguises.getInstance().getLogger().warning("Failed to download snapshot build.");
             ex.printStackTrace();
         } finally {
             downloading.set(false);

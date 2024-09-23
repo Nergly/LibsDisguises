@@ -2,7 +2,6 @@ package me.libraryaddict.disguise.disguisetypes.watchers;
 
 import me.libraryaddict.disguise.disguisetypes.Disguise;
 import me.libraryaddict.disguise.disguisetypes.MetaIndex;
-import org.bukkit.ChatColor;
 
 import java.security.InvalidParameterException;
 
@@ -25,8 +24,7 @@ public class WitherWatcher extends InsentientWatcher {
      * Sets the amount of time this Wither is invulnerable for
      */
     public void setInvulnerability(int invulnerability) {
-        setData(MetaIndex.WITHER_INVUL, invulnerability);
-        sendData(MetaIndex.WITHER_INVUL);
+        sendData(MetaIndex.WITHER_INVUL, invulnerability);
     }
 
     public int[] getTargets() {
@@ -35,7 +33,7 @@ public class WitherWatcher extends InsentientWatcher {
 
     public void setTargets(int... targets) {
         if (targets.length != 3) {
-            throw new InvalidParameterException(ChatColor.RED + "Expected 3 numbers for wither setTargets. Received " + targets.length);
+            throw new InvalidParameterException("<red>Expected 3 numbers for wither setTargets. Received " + targets.length + "</red>");
         }
         setData(MetaIndex.WITHER_TARGET_1, targets[0]);
         setData(MetaIndex.WITHER_TARGET_2, targets[1]);

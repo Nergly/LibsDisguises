@@ -1,13 +1,12 @@
 package me.libraryaddict.disguise.disguisetypes.watchers;
 
-import com.comphenix.protocol.PacketType.Play.Server;
-import com.comphenix.protocol.ProtocolLibrary;
-import com.comphenix.protocol.events.PacketContainer;
-import com.comphenix.protocol.wrappers.BlockPosition;
-import com.comphenix.protocol.wrappers.WrappedAttribute;
-import com.comphenix.protocol.wrappers.WrappedAttribute.Builder;
+import com.github.retrooper.packetevents.PacketEvents;
+import com.github.retrooper.packetevents.protocol.attribute.Attributes;
+import com.github.retrooper.packetevents.util.Vector3i;
+import com.github.retrooper.packetevents.wrapper.play.server.WrapperPlayServerUpdateAttributes;
 import lombok.Getter;
 import me.libraryaddict.disguise.DisguiseAPI;
+import me.libraryaddict.disguise.DisguiseConfig;
 import me.libraryaddict.disguise.disguisetypes.Disguise;
 import me.libraryaddict.disguise.disguisetypes.DisguiseType;
 import me.libraryaddict.disguise.disguisetypes.FlagWatcher;
@@ -24,17 +23,21 @@ import org.bukkit.potion.PotionEffectType;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.Iterator;
-import java.util.List;
 import java.util.Optional;
 
 public class LivingWatcher extends FlagWatcher {
+    @Getter
     private double maxHealth;
+    @Getter
     private boolean maxHealthSet;
     private HashSet<String> potionEffects = new HashSet<>();
     @Getter
     private boolean[] modifiedLivingAnimations = new boolean[3];
+    private Double viewScale;
+    private boolean isScaleSet;
 
     public LivingWatcher(Disguise disguise) {
         super(disguise);
@@ -47,18 +50,75 @@ public class LivingWatcher extends FlagWatcher {
         clone.maxHealth = maxHealth;
         clone.maxHealthSet = maxHealthSet;
         clone.modifiedLivingAnimations = Arrays.copyOf(modifiedLivingAnimations, modifiedLivingAnimations.length);
+        clone.viewScale = viewScale;
 
         return clone;
     }
 
+    @NmsAddedIn(NmsVersion.v1_21_R1)
+    public Double getScale() {
+        return viewScale;
+    }
+
+    @NmsAddedIn(NmsVersion.v1_21_R1)
+    public void setScale(Double viewScale) {
+        if (!NmsVersion.v1_21_R1.isSupported()) {
+            return;
+        }
+
+        // Clamping, the actual values are 0.06 to 16, but why do we need to force it?
+        if (viewScale != null) {
+            if (viewScale < 0) {
+                viewScale = 0D;
+            } else if (viewScale > 100) {
+                viewScale = 100D;
+            }
+        }
+
+        this.viewScale = viewScale;
+
+        if (getDisguise() == null || !getDisguise().isDisguiseInUse() || getDisguise().getWatcher() != this) {
+            return;
+        }
+
+        updateNameHeight();
+        double scaleToSend;
+
+        if (getScale() != null) {
+            scaleToSend = getScale();
+        } else {
+            scaleToSend = DisguiseUtilities.getActualEntityScale(getDisguise().getEntity());
+        }
+
+        Entity entity = getDisguise().getEntity();
+
+        for (Player player : DisguiseUtilities.getPerverts(getDisguise())) {
+            double toSend = player == entity && DisguiseConfig.isTallSelfDisguisesScaling() ?
+                Math.min(getDisguise().getSelfDisguiseTallScaleMax(), scaleToSend) : scaleToSend;
+
+            WrapperPlayServerUpdateAttributes.Property property =
+                new WrapperPlayServerUpdateAttributes.Property(Attributes.GENERIC_SCALE, toSend, new ArrayList<>());
+
+            WrapperPlayServerUpdateAttributes packet = new WrapperPlayServerUpdateAttributes(
+                player == getDisguise().getEntity() ? DisguiseAPI.getSelfDisguiseId() : getDisguise().getEntity().getEntityId(),
+                Collections.singletonList(property));
+
+            if (player == getDisguise().getEntity()) {
+                PacketEvents.getAPI().getPlayerManager().sendPacketSilently(player, packet);
+            } else {
+                PacketEvents.getAPI().getPlayerManager().sendPacket(player, packet);
+            }
+        }
+    }
+
     @NmsAddedIn(NmsVersion.v1_14)
-    public BlockPosition getBedPosition() {
+    public Vector3i getBedPosition() {
         return getData(MetaIndex.LIVING_BED_POSITION).orElse(null);
     }
 
     @NmsAddedIn(NmsVersion.v1_14)
-    public void setBedPosition(BlockPosition blockPosition) {
-        Optional<BlockPosition> optional;
+    public void setBedPosition(Vector3i blockPosition) {
+        Optional<Vector3i> optional;
 
         if (blockPosition != null) {
             optional = Optional.of(blockPosition);
@@ -66,8 +126,7 @@ public class LivingWatcher extends FlagWatcher {
             optional = Optional.empty();
         }
 
-        setData(MetaIndex.LIVING_BED_POSITION, optional);
-        sendData(MetaIndex.LIVING_BED_POSITION);
+        sendData(MetaIndex.LIVING_BED_POSITION, optional);
     }
 
     public float getHealth() {
@@ -75,8 +134,7 @@ public class LivingWatcher extends FlagWatcher {
     }
 
     public void setHealth(float health) {
-        setData(MetaIndex.LIVING_HEALTH, health);
-        sendData(MetaIndex.LIVING_HEALTH);
+        sendData(MetaIndex.LIVING_HEALTH, health);
     }
 
     /*@NmsAddedIn(val = NmsVersion.v1_13)
@@ -98,12 +156,12 @@ public class LivingWatcher extends FlagWatcher {
         modifiedLivingAnimations[byteValue] = true;
 
         if (flag) {
-            setData(MetaIndex.LIVING_META, (byte) (b0 | 1 << byteValue));
+            b0 = (byte) (b0 | 1 << byteValue);
         } else {
-            setData(MetaIndex.LIVING_META, (byte) (b0 & ~(1 << byteValue)));
+            b0 = (byte) (b0 & ~(1 << byteValue));
         }
 
-        sendData(MetaIndex.LIVING_META);
+        sendData(MetaIndex.LIVING_META, b0);
     }
 
     private boolean isMainHandUsed() {
@@ -156,40 +214,25 @@ public class LivingWatcher extends FlagWatcher {
         setHandFlag(2, setSpinning);
     }
 
-    public double getMaxHealth() {
-        return maxHealth;
-    }
-
     public void setMaxHealth(double newHealth) {
         this.maxHealth = newHealth;
         this.maxHealthSet = true;
 
-        if (DisguiseAPI.isDisguiseInUse(getDisguise()) && getDisguise().getWatcher() == this) {
-            PacketContainer packet = new PacketContainer(Server.UPDATE_ATTRIBUTES);
+        if (!getDisguise().isDisguiseInUse() || getDisguise().getWatcher() != this) {
+            return;
+        }
 
-            List<WrappedAttribute> attributes = new ArrayList<>();
+        for (Player player : DisguiseUtilities.getPerverts(getDisguise())) {
+            WrapperPlayServerUpdateAttributes.Property property =
+                new WrapperPlayServerUpdateAttributes.Property(Attributes.GENERIC_MAX_HEALTH, getMaxHealth(), new ArrayList<>());
+            WrapperPlayServerUpdateAttributes packet = new WrapperPlayServerUpdateAttributes(
+                player == getDisguise().getEntity() ? DisguiseAPI.getSelfDisguiseId() : getDisguise().getEntity().getEntityId(),
+                Collections.singletonList(property));
 
-            Builder builder;
-            builder = WrappedAttribute.newBuilder();
-            builder.attributeKey(NmsVersion.v1_16.isSupported() ? "generic.max_health" : "generic.maxHealth");
-            builder.baseValue(getMaxHealth());
-            builder.packet(packet);
-
-            attributes.add(builder.build());
-
-            Entity entity = getDisguise().getEntity();
-
-            packet.getIntegers().write(0, entity.getEntityId());
-            packet.getAttributeCollectionModifier().write(0, attributes);
-
-            for (Player player : DisguiseUtilities.getPerverts(getDisguise())) {
-                if (player == getDisguise().getEntity()) {
-                    PacketContainer p = packet.shallowClone();
-                    p.getIntegers().write(0, DisguiseAPI.getSelfDisguiseId());
-                    ProtocolLibrary.getProtocolManager().sendServerPacket(player, p, false);
-                } else {
-                    ProtocolLibrary.getProtocolManager().sendServerPacket(player, packet, false);
-                }
+            if (player == getDisguise().getEntity()) {
+                PacketEvents.getAPI().getPlayerManager().sendPacketSilently(player, packet);
+            } else {
+                PacketEvents.getAPI().getPlayerManager().sendPacket(player, packet);
             }
         }
     }
@@ -199,8 +242,7 @@ public class LivingWatcher extends FlagWatcher {
     }
 
     public void setPotionParticlesAmbient(boolean particles) {
-        setData(MetaIndex.LIVING_POTION_AMBIENT, particles);
-        sendData(MetaIndex.LIVING_POTION_AMBIENT);
+        sendData(MetaIndex.LIVING_POTION_AMBIENT, particles);
     }
 
     public Color getParticlesColor() {
@@ -211,8 +253,7 @@ public class LivingWatcher extends FlagWatcher {
     public void setParticlesColor(Color color) {
         potionEffects.clear();
 
-        setData(MetaIndex.LIVING_POTIONS, color.asRGB());
-        sendData(MetaIndex.LIVING_POTIONS);
+        sendData(MetaIndex.LIVING_POTIONS, color.asRGB());
     }
 
     private int getPotions() {
@@ -251,10 +292,6 @@ public class LivingWatcher extends FlagWatcher {
         return potionEffects.contains(type.getName());
     }
 
-    public boolean isMaxHealthSet() {
-        return maxHealthSet;
-    }
-
     public PotionEffectType[] getPotionEffects() {
         PotionEffectType[] effects = new PotionEffectType[potionEffects.size()];
 
@@ -288,8 +325,7 @@ public class LivingWatcher extends FlagWatcher {
     }
 
     private void sendPotionEffects() {
-        setData(MetaIndex.LIVING_POTIONS, getPotions());
-        sendData(MetaIndex.LIVING_POTIONS);
+        sendData(MetaIndex.LIVING_POTIONS, getPotions());
     }
 
     public int getArrowsSticking() {
@@ -298,8 +334,7 @@ public class LivingWatcher extends FlagWatcher {
 
     @MethodOnlyUsedBy(value = {DisguiseType.PLAYER})
     public void setArrowsSticking(int arrowsNo) {
-        setData(MetaIndex.LIVING_ARROWS, Math.max(0, Math.min(127, arrowsNo)));
-        sendData(MetaIndex.LIVING_ARROWS);
+        sendData(MetaIndex.LIVING_ARROWS, Math.max(0, Math.min(127, arrowsNo)));
     }
 
     @Override

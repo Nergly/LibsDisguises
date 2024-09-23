@@ -5,6 +5,7 @@ import me.libraryaddict.disguise.utilities.DisguiseUtilities;
 import me.libraryaddict.disguise.utilities.params.ParamInfo;
 import me.libraryaddict.disguise.utilities.params.ParamInfoManager;
 import me.libraryaddict.disguise.utilities.parser.WatcherMethod;
+import me.libraryaddict.disguise.utilities.reflection.ReflectionManager;
 import org.apache.commons.lang.StringUtils;
 import org.bukkit.entity.Entity;
 import org.bukkit.entity.EntityType;
@@ -13,9 +14,6 @@ import java.util.ArrayList;
 import java.util.Locale;
 import java.util.Map;
 
-/**
- * Created by libraryaddict on 10/06/2017.
- */
 public class TranslateFiller {
     public static void fillConfigs() {
         // Fill the configs
@@ -67,7 +65,7 @@ public class TranslateFiller {
                     className = "Illager";
                 }
 
-                TranslateType.DISGUISE_OPTIONS.save(method.getName(),
+                TranslateType.DISGUISE_OPTIONS.save(method.getMappedName(),
                     "Found in the disguise options for " + className + " and uses " + (para.isArray() ? "multiple" + " " : "a ") +
                         para.getSimpleName().replace("[]", "s"));
             }
@@ -78,7 +76,7 @@ public class TranslateFiller {
 
         ArrayList<Class> validClasses = new ArrayList<>();
 
-        for (EntityType type : EntityType.values()) {
+        for (EntityType type : ReflectionManager.enumValues(EntityType.class)) {
             Class c = type.getEntityClass();
 
             while (c != null && Entity.class.isAssignableFrom(c) && !validClasses.contains(c)) {

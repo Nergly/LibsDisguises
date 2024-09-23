@@ -1,10 +1,11 @@
 package me.libraryaddict.disguise.disguisetypes.watchers;
 
-import com.comphenix.protocol.wrappers.WrappedChatComponent;
 import me.libraryaddict.disguise.disguisetypes.AnimalColor;
 import me.libraryaddict.disguise.disguisetypes.Disguise;
 import me.libraryaddict.disguise.disguisetypes.MetaIndex;
+import me.libraryaddict.disguise.utilities.DisguiseUtilities;
 import me.libraryaddict.disguise.utilities.reflection.NmsVersion;
+import net.kyori.adventure.text.Component;
 import org.bukkit.DyeColor;
 
 import java.util.Optional;
@@ -27,8 +28,7 @@ public class SheepWatcher extends AgeableWatcher {
     public void setColor(DyeColor color) {
         byte b0 = getData(MetaIndex.SHEEP_WOOL);
 
-        setData(MetaIndex.SHEEP_WOOL, (byte) (b0 & 240 | color.getWoolData() & 15));
-        sendData(MetaIndex.SHEEP_WOOL);
+        sendData(MetaIndex.SHEEP_WOOL, (byte) (b0 & 240 | color.getWoolData() & 15));
     }
 
     public boolean isRainbowWool() {
@@ -44,10 +44,9 @@ public class SheepWatcher extends AgeableWatcher {
             return false;
         }
 
-        Optional<WrappedChatComponent> optional = getData(MetaIndex.ENTITY_CUSTOM_NAME);
+        Optional<Component> optional = getData(MetaIndex.ENTITY_CUSTOM_NAME);
 
-        return optional.filter(wrappedChatComponent -> "{\"text\":\"jeb_\"}".equals(wrappedChatComponent.getJson())).isPresent();
-
+        return optional.isPresent() && DisguiseUtilities.serialize(optional.get()).contains("\"jeb_\"");
     }
 
     public void setRainbowWool(boolean rainbow) {
@@ -66,11 +65,11 @@ public class SheepWatcher extends AgeableWatcher {
         byte b0 = getData(MetaIndex.SHEEP_WOOL);
 
         if (flag) {
-            setData(MetaIndex.SHEEP_WOOL, (byte) (b0 | 16));
+            b0 = (byte) (b0 | 16);
         } else {
-            setData(MetaIndex.SHEEP_WOOL, (byte) (b0 & -17));
+            b0 = (byte) (b0 & -17);
         }
 
-        sendData(MetaIndex.SHEEP_WOOL);
+        sendData(MetaIndex.SHEEP_WOOL, b0);
     }
 }

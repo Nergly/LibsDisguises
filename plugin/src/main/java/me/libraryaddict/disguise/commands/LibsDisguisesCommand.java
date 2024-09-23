@@ -6,17 +6,20 @@ import me.libraryaddict.disguise.commands.libsdisguises.LDChangelog;
 import me.libraryaddict.disguise.commands.libsdisguises.LDCommand;
 import me.libraryaddict.disguise.commands.libsdisguises.LDConfig;
 import me.libraryaddict.disguise.commands.libsdisguises.LDCount;
+import me.libraryaddict.disguise.commands.libsdisguises.LDDebugDisguiseLoop;
 import me.libraryaddict.disguise.commands.libsdisguises.LDDebugMineSkin;
 import me.libraryaddict.disguise.commands.libsdisguises.LDDebugPlayer;
+import me.libraryaddict.disguise.commands.libsdisguises.LDDebugging;
 import me.libraryaddict.disguise.commands.libsdisguises.LDHelp;
 import me.libraryaddict.disguise.commands.libsdisguises.LDJson;
 import me.libraryaddict.disguise.commands.libsdisguises.LDMetaInfo;
+import me.libraryaddict.disguise.commands.libsdisguises.LDMissingDescription;
 import me.libraryaddict.disguise.commands.libsdisguises.LDMods;
 import me.libraryaddict.disguise.commands.libsdisguises.LDPermTest;
 import me.libraryaddict.disguise.commands.libsdisguises.LDReload;
 import me.libraryaddict.disguise.commands.libsdisguises.LDScoreboard;
 import me.libraryaddict.disguise.commands.libsdisguises.LDUpdate;
-import me.libraryaddict.disguise.commands.libsdisguises.LDUpdateProtocolLib;
+import me.libraryaddict.disguise.commands.libsdisguises.LDUpdatePacketEvents;
 import me.libraryaddict.disguise.commands.libsdisguises.LDUploadLogs;
 import me.libraryaddict.disguise.utilities.LibsPremium;
 import me.libraryaddict.disguise.utilities.translations.LibsMsg;
@@ -49,8 +52,11 @@ public class LibsDisguisesCommand implements CommandExecutor, TabCompleter {
         getCommands().add(new LDMetaInfo());
         getCommands().add(new LDDebugPlayer());
         getCommands().add(new LDUploadLogs());
-        getCommands().add(new LDUpdateProtocolLib());
+        getCommands().add(new LDUpdatePacketEvents());
         getCommands().add(new LDDebugMineSkin());
+        getCommands().add(new LDDebugDisguiseLoop());
+        getCommands().add(new LDMissingDescription());
+        getCommands().add(new LDDebugging());
     }
 
     protected ArrayList<String> filterTabs(ArrayList<String> list, String[] origArgs) {
@@ -100,7 +106,7 @@ public class LibsDisguisesCommand implements CommandExecutor, TabCompleter {
             if (!disguises.isReleaseBuild()) {
                 version += "-";
 
-                if (disguises.isNumberedBuild()) {
+                if (disguises.isJenkins()) {
                     version += "b";
                 }
 
@@ -161,14 +167,10 @@ public class LibsDisguisesCommand implements CommandExecutor, TabCompleter {
                 continue;
             }
 
-            for (String s : command.getTabComplete()) {
-                String[] split = s.split(" ");
+            List<String> tabComplete = command.onTabComplete(origArgs);
 
-                if (split.length <= 1 || !args[0].equalsIgnoreCase(split[0])) {
-                    continue;
-                }
-
-                tabs.add(split[1]);
+            if (tabComplete != null) {
+                tabs.addAll(tabComplete);
             }
         }
 

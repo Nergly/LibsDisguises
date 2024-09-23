@@ -1,7 +1,6 @@
 package me.libraryaddict.disguise.disguisetypes.watchers;
 
-import com.comphenix.protocol.wrappers.BlockPosition;
-import com.comphenix.protocol.wrappers.EnumWrappers.Direction;
+import com.github.retrooper.packetevents.util.Vector3i;
 import me.libraryaddict.disguise.disguisetypes.AnimalColor;
 import me.libraryaddict.disguise.disguisetypes.Disguise;
 import me.libraryaddict.disguise.disguisetypes.MetaIndex;
@@ -24,17 +23,15 @@ public class ShulkerWatcher extends InsentientWatcher {
     }
 
     public void setFacingDirection(BlockFace face) {
-        setData(MetaIndex.SHULKER_FACING, Direction.valueOf(face.name()));
-        sendData(MetaIndex.SHULKER_FACING);
+        sendData(MetaIndex.SHULKER_FACING, com.github.retrooper.packetevents.protocol.world.BlockFace.valueOf(face.name()));
     }
 
-    public BlockPosition getAttachmentPosition() {
-        return getData(MetaIndex.SHULKER_ATTACHED).orElse(BlockPosition.ORIGIN);
+    public Vector3i getAttachmentPosition() {
+        return getData(MetaIndex.SHULKER_ATTACHED).orElse(Vector3i.zero());
     }
 
-    public void setAttachmentPosition(BlockPosition pos) {
-        setData(MetaIndex.SHULKER_ATTACHED, Optional.of(pos));
-        sendData(MetaIndex.SHULKER_ATTACHED);
+    public void setAttachmentPosition(Vector3i pos) {
+        sendData(MetaIndex.SHULKER_ATTACHED, Optional.ofNullable(pos));
     }
 
     public int getShieldHeight() {
@@ -50,12 +47,11 @@ public class ShulkerWatcher extends InsentientWatcher {
             newHeight = 127;
         }
 
-        setData(MetaIndex.SHULKER_PEEKING, (byte) newHeight);
-        sendData(MetaIndex.SHULKER_PEEKING);
+        sendData(MetaIndex.SHULKER_PEEKING, (byte) newHeight);
     }
 
     public DyeColor getColor() {
-        if (!hasValue(MetaIndex.SHULKER_COLOR)) {
+        if (!hasValue(MetaIndex.SHULKER_COLOR) || getData(MetaIndex.SHULKER_COLOR) == (byte) 16) {
             return DyeColor.PURPLE;
         }
 
@@ -72,7 +68,6 @@ public class ShulkerWatcher extends InsentientWatcher {
             return;
         }
 
-        setData(MetaIndex.SHULKER_COLOR, newColor.getWoolData());
-        sendData(MetaIndex.SHULKER_COLOR);
+        sendData(MetaIndex.SHULKER_COLOR, newColor == null ? (byte) 16 : newColor.getWoolData());
     }
 }

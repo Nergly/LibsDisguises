@@ -8,7 +8,7 @@ import me.libraryaddict.disguise.utilities.reflection.annotations.NmsAddedIn;
 import org.bukkit.Material;
 import org.bukkit.inventory.ItemStack;
 
-import java.util.OptionalInt;
+import java.util.Optional;
 
 public class FireworkWatcher extends FlagWatcher {
     public FireworkWatcher(Disguise disguise) {
@@ -31,8 +31,7 @@ public class FireworkWatcher extends FlagWatcher {
         newItem = newItem.clone();
         newItem.setAmount(1);
 
-        setData(MetaIndex.FIREWORK_ITEM, newItem);
-        sendData(MetaIndex.FIREWORK_ITEM);
+        sendData(MetaIndex.FIREWORK_ITEM, newItem);
     }
 
     @NmsAddedIn(NmsVersion.v1_14)
@@ -42,12 +41,11 @@ public class FireworkWatcher extends FlagWatcher {
 
     @NmsAddedIn(NmsVersion.v1_14)
     public void setShotAtAngle(boolean shotAtAngle) {
-        setData(MetaIndex.FIREWORK_SHOT_AT_ANGLE, shotAtAngle);
-        sendData(MetaIndex.FIREWORK_SHOT_AT_ANGLE);
+        sendData(MetaIndex.FIREWORK_SHOT_AT_ANGLE, shotAtAngle);
     }
 
     @NmsAddedIn(NmsVersion.v1_14)
-    public OptionalInt getAttachedEntityOpt() {
+    public Optional<Integer> getAttachedEntityOpt() {
         return getData(MetaIndex.FIREWORK_ATTACHED_ENTITY);
     }
 
@@ -56,17 +54,15 @@ public class FireworkWatcher extends FlagWatcher {
     }
 
     public void setAttachedEntity(int entityId) {
-        setAttachedEntity(entityId == 0 ? OptionalInt.empty() : OptionalInt.of(entityId));
+        setAttachedEntity(entityId == 0 ? Optional.empty() : Optional.of(entityId));
     }
 
     @NmsAddedIn(NmsVersion.v1_14)
-    public void setAttachedEntity(OptionalInt entityId) {
+    public void setAttachedEntity(Optional<Integer> entityId) {
         if (NmsVersion.v1_14.isSupported()) {
-            setData(MetaIndex.FIREWORK_ATTACHED_ENTITY, entityId);
-            sendData(MetaIndex.FIREWORK_ATTACHED_ENTITY);
+            sendData(MetaIndex.FIREWORK_ATTACHED_ENTITY, entityId);
         } else {
-            setData(MetaIndex.FIREWORK_ATTACHED_ENTITY_OLD, entityId.orElse(0));
-            sendData(MetaIndex.FIREWORK_ATTACHED_ENTITY_OLD);
+            sendData(MetaIndex.FIREWORK_ATTACHED_ENTITY_OLD, entityId.orElse(0));
         }
     }
 }

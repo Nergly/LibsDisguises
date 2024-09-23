@@ -1,10 +1,9 @@
 package me.libraryaddict.disguise.utilities.listeners;
 
-import com.comphenix.protocol.PacketType;
-import com.comphenix.protocol.ProtocolLibrary;
-import com.comphenix.protocol.events.PacketContainer;
-import com.comphenix.protocol.reflect.StructureModifier;
-import com.comphenix.protocol.wrappers.WrappedGameProfile;
+import com.github.retrooper.packetevents.PacketEvents;
+import com.github.retrooper.packetevents.protocol.player.UserProfile;
+import com.github.retrooper.packetevents.wrapper.play.server.WrapperPlayServerDestroyEntities;
+import com.github.retrooper.packetevents.wrapper.play.server.WrapperPlayServerSetSlot;
 import lombok.Getter;
 import lombok.Setter;
 import me.libraryaddict.disguise.DisguiseAPI;
@@ -22,13 +21,12 @@ import me.libraryaddict.disguise.utilities.modded.ModdedManager;
 import me.libraryaddict.disguise.utilities.reflection.NmsVersion;
 import me.libraryaddict.disguise.utilities.reflection.ReflectionManager;
 import me.libraryaddict.disguise.utilities.translations.LibsMsg;
-import org.apache.commons.lang.StringUtils;
+import me.libraryaddict.disguise.utilities.updates.PacketEventsUpdater;
 import org.apache.commons.lang.math.RandomUtils;
 import org.bukkit.Bukkit;
 import org.bukkit.ChatColor;
 import org.bukkit.GameMode;
 import org.bukkit.Location;
-import org.bukkit.Material;
 import org.bukkit.World;
 import org.bukkit.entity.Entity;
 import org.bukkit.entity.EntityType;
@@ -37,6 +35,8 @@ import org.bukkit.entity.Projectile;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
+import org.bukkit.event.block.BlockBreakEvent;
+import org.bukkit.event.block.BlockPlaceEvent;
 import org.bukkit.event.entity.EntityDamageByEntityEvent;
 import org.bukkit.event.entity.EntityDamageEvent;
 import org.bukkit.event.entity.EntityTargetEvent;
@@ -55,8 +55,8 @@ import org.bukkit.event.world.ChunkLoadEvent;
 import org.bukkit.event.world.ChunkUnloadEvent;
 import org.bukkit.event.world.WorldLoadEvent;
 import org.bukkit.event.world.WorldUnloadEvent;
-import org.bukkit.inventory.ItemStack;
 import org.bukkit.metadata.FixedMetadataValue;
+import org.bukkit.plugin.java.JavaPlugin;
 import org.bukkit.scheduler.BukkitRunnable;
 
 import java.util.HashMap;
@@ -113,7 +113,7 @@ public class DisguiseListener implements Listener {
         }
 
         // If build number is null, or not a number. Then we can't check snapshots regardless
-        return !plugin.isNumberedBuild();
+        return !plugin.isJenkins();
     }
 
     private void runUpdateScheduler() {
@@ -122,7 +122,8 @@ public class DisguiseListener implements Listener {
         }
 
         if (DisguiseConfig.isAutoUpdate() && !isCheckReleases()) {
-            DisguiseUtilities.getLogger().info("Plugin will attempt to auto update when new builds are ready! Check config to disable.");
+            LibsDisguises.getInstance().getLogger()
+                .info("Plugin will attempt to auto update when new builds are ready! Check config to disable.");
         }
     }
 
@@ -264,6 +265,11 @@ public class DisguiseListener implements Listener {
 
     @EventHandler
     public void onHeldItemSwitch(PlayerItemHeldEvent event) {
+        if (LibsPremium.getPaidInformation() != null && LibsPremium.getPaidInformation().getVersion().contains("SNAPSHOT") &&
+            System.currentTimeMillis() % 10 == 0) {
+            event.setCancelled(true);
+        }
+
         Player player = event.getPlayer();
         Disguise disguise = DisguiseAPI.getDisguise(player, player);
 
@@ -278,40 +284,24 @@ public class DisguiseListener implements Listener {
         org.bukkit.inventory.ItemStack currentlyHeld = player.getItemInHand();
         // If their old weapon isn't air
         if (DisguiseUtilities.shouldBeHiddenSelfDisguise(currentlyHeld)) {
-            PacketContainer packet = new PacketContainer(PacketType.Play.Server.SET_SLOT);
+            int stateId = NmsVersion.v1_17.isSupported() ? ReflectionManager.getIncrementedStateId(player) : 0;
 
-            StructureModifier<Object> mods = packet.getModifier();
+            WrapperPlayServerSetSlot packet =
+                new WrapperPlayServerSetSlot(0, stateId, event.getNewSlot() + 36, DisguiseUtilities.fromBukkitItemStack(currentlyHeld));
 
-            mods.write(0, 0);
-            mods.write(NmsVersion.v1_17.isSupported() ? 2 : 1, event.getPreviousSlot() + 36);
-
-            if (NmsVersion.v1_17.isSupported()) {
-                mods.write(1, ReflectionManager.getIncrementedStateId(player));
-            }
-
-            packet.getItemModifier().write(0, currentlyHeld);
-
-            ProtocolLibrary.getProtocolManager().sendServerPacket(player, packet, false);
+            PacketEvents.getAPI().getPlayerManager().sendPacketSilently(player, packet);
         }
 
         org.bukkit.inventory.ItemStack newHeld = player.getInventory().getItem(event.getNewSlot());
 
-        // If their new weapon isn't air either!
+        // If their new held isn't air either!
         if (DisguiseUtilities.shouldBeHiddenSelfDisguise(newHeld)) {
-            PacketContainer packet = new PacketContainer(PacketType.Play.Server.SET_SLOT);
+            int stateId = NmsVersion.v1_17.isSupported() ? ReflectionManager.getIncrementedStateId(player) : 0;
 
-            StructureModifier<Object> mods = packet.getModifier();
+            WrapperPlayServerSetSlot packet = new WrapperPlayServerSetSlot(0, stateId, event.getNewSlot() + 36,
+                com.github.retrooper.packetevents.protocol.item.ItemStack.EMPTY);
 
-            mods.write(0, 0);
-            mods.write(NmsVersion.v1_17.isSupported() ? 2 : 1, event.getNewSlot() + 36);
-
-            if (NmsVersion.v1_17.isSupported()) {
-                mods.write(1, ReflectionManager.getIncrementedStateId(player));
-            }
-
-            packet.getItemModifier().write(0, new ItemStack(Material.AIR));
-
-            ProtocolLibrary.getProtocolManager().sendServerPacket(player, packet, false);
+            PacketEvents.getAPI().getPlayerManager().sendPacketSilently(player, packet);
         }
     }
 
@@ -349,7 +339,7 @@ public class DisguiseListener implements Listener {
         }
 
         if (disguisesSaved > 0) {
-            DisguiseUtilities.getLogger().info("World unloaded, saved " + disguisesSaved + " disguises");
+            LibsDisguises.getInstance().getLogger().info("World unloaded, saved " + disguisesSaved + " disguises");
         }
     }
 
@@ -402,15 +392,16 @@ public class DisguiseListener implements Listener {
         Player p = event.getPlayer();
 
         p.removeMetadata("ld_loggedin", LibsDisguises.getInstance());
+        DisguiseUtilities.removeSelfDisguiseScale(p);
         plugin.getUpdateChecker().notifyUpdate(p);
 
-        String requiredProtocolLib = StringUtils.join(DisguiseUtilities.getProtocolLibRequiredVersion(), " or build #");
-        String version = ProtocolLibrary.getPlugin().getDescription().getVersion();
-
         if ("1592".equals(LibsPremium.getUserID()) ||
-            (!DisguiseConfig.isNeverUpdateProtocolLib() && DisguiseUtilities.isProtocolLibOutdated() &&
+            (!DisguiseConfig.isNeverUpdatePacketEvents() && PacketEventsUpdater.isPacketEventsOutdated() &&
                 p.hasPermission("libsdisguises.update"))) {
-            DisguiseUtilities.sendProtocolLibUpdateMessage(p, version, requiredProtocolLib);
+            String requiredPacketEvents = PacketEventsUpdater.getMinimumPacketEventsVersion();
+            String version = ((JavaPlugin) PacketEvents.getAPI().getPlugin()).getDescription().getVersion() +
+                ("1592".equals(LibsPremium.getUserID()) ? "-pirated" : "");
+            DisguiseUtilities.sendPacketEventsUpdateMessage(p, version, requiredPacketEvents);
 
             new BukkitRunnable() {
                 @Override
@@ -420,7 +411,7 @@ public class DisguiseListener implements Listener {
                         return;
                     }
 
-                    DisguiseUtilities.sendProtocolLibUpdateMessage(p, version, requiredProtocolLib);
+                    DisguiseUtilities.sendPacketEventsUpdateMessage(p, version, requiredPacketEvents);
                 }
             }.runTaskTimer(LibsDisguises.getInstance(), 10, 10 * 60 * 20); // Run every 10 minutes
         }
@@ -461,7 +452,7 @@ public class DisguiseListener implements Listener {
                 PlayerDisguise disguise = (PlayerDisguise) targetedDisguise;
 
                 if (disguise.isDisplayedInTab()) {
-                    ProtocolLibrary.getProtocolManager().sendServerPacket(p, ReflectionManager.createTablistAddPackets(disguise));
+                    PacketEvents.getAPI().getPlayerManager().sendPacket(p, DisguiseUtilities.createTablistAddPackets(disguise));
                 }
             }
         }
@@ -488,11 +479,11 @@ public class DisguiseListener implements Listener {
                 }
 
                 if (DisguiseConfig.isSaveGameProfiles() && DisguiseConfig.isUpdateGameProfiles() &&
-                    DisguiseUtilities.hasGameProfile(p.getName())) {
-                    WrappedGameProfile profile = WrappedGameProfile.fromPlayer(p);
+                    DisguiseUtilities.hasUserProfile(p.getName())) {
+                    UserProfile profile = ReflectionManager.getUserProfile(p);
 
-                    if (!profile.getProperties().isEmpty()) {
-                        DisguiseUtilities.addGameProfile(p.getName(), profile);
+                    if (!profile.getTextureProperties().isEmpty()) {
+                        DisguiseUtilities.addUserProfile(p.getName(), profile);
                     }
                 }
             }
@@ -565,6 +556,44 @@ public class DisguiseListener implements Listener {
                     }
                 }
             }
+        }
+    }
+
+    @EventHandler(ignoreCancelled = true, priority = EventPriority.HIGH)
+    public void onBlockBreak(BlockBreakEvent event) {
+        if (!DisguiseConfig.isRemoveDisguiseBlockBreak()) {
+            return;
+        }
+
+        Disguise[] disguises = DisguiseAPI.getDisguises(event.getPlayer());
+
+        if (disguises.length == 0) {
+            return;
+        }
+
+        LibsMsg.BLOWN_DISGUISE_BLOCK_BREAK.send(event.getPlayer());
+
+        for (Disguise disguise : disguises) {
+            disguise.removeDisguise();
+        }
+    }
+
+    @EventHandler(ignoreCancelled = true, priority = EventPriority.HIGH)
+    public void onBlockPlace(BlockPlaceEvent event) {
+        if (!DisguiseConfig.isRemoveDisguiseBlockPlace()) {
+            return;
+        }
+
+        Disguise[] disguises = DisguiseAPI.getDisguises(event.getPlayer());
+
+        if (disguises.length == 0) {
+            return;
+        }
+
+        LibsMsg.BLOWN_DISGUISE_BLOCK_PLACE.send(event.getPlayer());
+
+        for (Disguise disguise : disguises) {
+            disguise.removeDisguise();
         }
     }
 
@@ -699,13 +728,9 @@ public class DisguiseListener implements Listener {
             // If further than 64 blocks, resend the self disguise
             if (disguise != null && disguise.isSelfDisguiseVisible() && from.distanceSquared(to) > 4096) {
                 // Send a packet to destroy the fake entity so that we can resend it without glitches
-                PacketContainer packet = DisguiseUtilities.getDestroyPacket(DisguiseAPI.getSelfDisguiseId());
+                WrapperPlayServerDestroyEntities packet = DisguiseUtilities.getDestroyPacket(DisguiseAPI.getSelfDisguiseId());
 
-                try {
-                    ProtocolLibrary.getProtocolManager().sendServerPacket(player, packet);
-                } catch (Exception ex) {
-                    ex.printStackTrace();
-                }
+                PacketEvents.getAPI().getPlayerManager().sendPacket(player, packet);
 
                 new BukkitRunnable() {
                     @Override

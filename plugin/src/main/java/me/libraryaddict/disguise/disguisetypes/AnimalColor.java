@@ -1,5 +1,6 @@
 package me.libraryaddict.disguise.disguisetypes;
 
+import lombok.Getter;
 import me.libraryaddict.disguise.utilities.reflection.NmsVersion;
 import org.bukkit.DyeColor;
 import org.bukkit.Material;
@@ -23,6 +24,10 @@ public enum AnimalColor {
         NmsVersion.v1_13.isSupported() ? Material.getMaterial("LIGHT_GRAY_DYE") : null),
     WHITE(DyeColor.WHITE, NmsVersion.v1_13.isSupported() ? Material.getMaterial("BONE_MEAL") : null),
     YELLOW(DyeColor.YELLOW, NmsVersion.v1_14.isSupported() ? Material.getMaterial("YELLOW_DYE") : Material.getMaterial("DANDELION_YELLOW"));
+
+    public Material getCarpetMaterial() {
+        return Material.valueOf(name() + "_CARPET");
+    }
 
     public static AnimalColor getColorByWool(int woolId) {
         for (AnimalColor color : values()) {
@@ -102,6 +107,7 @@ public enum AnimalColor {
         return null;
     }
 
+    @Getter
     private final DyeColor dyeColor;
     private final Material material;
 
@@ -114,7 +120,4 @@ public enum AnimalColor {
         return material;
     }
 
-    public DyeColor getDyeColor() {
-        return dyeColor;
-    }
 }
