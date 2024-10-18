@@ -5,7 +5,6 @@ import com.github.retrooper.packetevents.protocol.attribute.Attributes;
 import com.github.retrooper.packetevents.wrapper.PacketWrapper;
 import com.github.retrooper.packetevents.wrapper.play.server.WrapperPlayServerPlayerInfo;
 import com.github.retrooper.packetevents.wrapper.play.server.WrapperPlayServerUpdateAttributes;
-import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.Setter;
 import me.libraryaddict.disguise.DisguiseAPI;
@@ -29,7 +28,6 @@ import me.libraryaddict.disguise.utilities.translations.LibsMsg;
 import net.md_5.bungee.api.ChatMessageType;
 import net.md_5.bungee.api.chat.BaseComponent;
 import org.bukkit.Bukkit;
-import org.bukkit.NamespacedKey;
 import org.bukkit.attribute.Attribute;
 import org.bukkit.attribute.AttributeInstance;
 import org.bukkit.attribute.AttributeModifier;
@@ -60,25 +58,38 @@ import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 
 public abstract class Disguise {
+    /**
+     * In use doesn't mean that this disguise is active. It means that Lib's Disguises still stores a reference to
+     * the disguise. Though it also means the disguise is active.
+     * getEntity() can still return null if this disguise is active after despawn, logout, etc.
+     *
+     * @return isDisguiseInUse
+     */
+    @Getter
     private transient boolean disguiseInUse;
     private final DisguiseType disguiseType;
     private transient BukkitRunnable runnable;
     /**
-     * -- GETTER --
-     * Get the disguised entity
-     *
-     * @return entity
+     * The entity that is disguised
      */
     @Getter
     private transient Entity entity;
+    @Getter
     private boolean hearSelfDisguise = DisguiseConfig.isSelfDisguisesSoundsReplaced();
+    @Getter
     private boolean hideArmorFromSelf = DisguiseConfig.isHidingArmorFromSelf();
+    @Getter
     private boolean hideHeldItemFromSelf = DisguiseConfig.isHidingHeldItemFromSelf();
-    private boolean keepDisguisePlayerDeath = DisguiseConfig.isKeepDisguiseOnPlayerDeath();
+    @Getter
+    private boolean keepDisguiseOnPlayerDeath = DisguiseConfig.isKeepDisguiseOnPlayerDeath();
+    @Getter
     private boolean modifyBoundingBox = DisguiseConfig.isModifyBoundingBox();
     private boolean playerHiddenFromTab = DisguiseConfig.isHideDisguisedPlayers();
     private boolean replaceSounds = DisguiseConfig.isSoundEnabled();
+    @Setter
+    @Getter
     private boolean mobsIgnoreDisguise;
+    @Getter
     private boolean velocitySent = DisguiseConfig.isVelocitySent();
     private boolean viewSelfDisguise = DisguiseConfig.isViewDisguises() && DisguiseConfig.isViewSelfDisguisesDefault();
     @Getter
@@ -87,13 +98,8 @@ public abstract class Disguise {
     private BarColor bossBarColor = DisguiseConfig.getBossBarColor();
     @Getter
     private BarStyle bossBarStyle = DisguiseConfig.getBossBarStyle();
-    @Getter(value = AccessLevel.PRIVATE)
-    private final NamespacedKey bossBar = new NamespacedKey("libsdisguises", UUID.randomUUID().toString());
     /**
-     * -- GETTER --
-     * Get the flag watcher
-     *
-     * @return flagWatcher
+     * The unique FlagWatcher of this disguise
      */
     @Getter
     private FlagWatcher watcher;
@@ -125,17 +131,15 @@ public abstract class Disguise {
     @Setter
     private String soundGroup;
     private UUID uuid = ReflectionManager.getRandomUUID();
-    /**
-     * The biggest we'll allow the self disguise to be scaled up to, including disguise applied scale
-     */
-    @Getter
-    private double selfDisguiseTallScaleMax = 1;
     @Getter
     private boolean scalePlayerToDisguise = DisguiseConfig.isScaleSelfDisguises();
+    @Getter
+    private final DisguiseInternals internals;
 
     public Disguise(DisguiseType disguiseType) {
         this.disguiseType = disguiseType;
         this.disguiseName = disguiseType.toReadable();
+        this.internals = new DisguiseInternals(this);
     }
 
     public HashMap<String, Object> getCustomData() {
@@ -210,7 +214,7 @@ public abstract class Disguise {
     public abstract double getHeight();
 
     public double getNameHeightScale() {
-        if (!NmsVersion.v1_21_R1.isSupported() || isMiscDisguise()) {
+        if (!NmsVersion.v1_20_R4.isSupported() || isMiscDisguise()) {
             return 1;
         }
 
@@ -220,7 +224,7 @@ public abstract class Disguise {
         if (watcherScale != null) {
             finalScale = watcherScale;
         } else {
-            finalScale = DisguiseUtilities.getActualEntityScale(getEntity());
+            finalScale = getInternals().getEntityScaleWithoutLibsDisguises();
         }
 
         // Clamp
@@ -366,14 +370,14 @@ public abstract class Disguise {
     }
 
     private void removeBossBar() {
-        BossBar bossBar = Bukkit.getBossBar(getBossBar());
+        BossBar bossBar = Bukkit.getBossBar(getInternals().getBossBar());
 
         if (bossBar == null) {
             return;
         }
 
         bossBar.removeAll();
-        Bukkit.removeBossBar(getBossBar());
+        Bukkit.removeBossBar(getInternals().getBossBar());
     }
 
     public void setNotifyBar(DisguiseConfig.NotifyBar bar) {
@@ -432,8 +436,8 @@ public abstract class Disguise {
 
         removeBossBar();
 
-        BossBar bar = Bukkit.createBossBar(getBossBar(), BaseComponent.toLegacyText(LibsMsg.ACTION_BAR_MESSAGE.getBase(getDisguiseName())),
-            getBossBarColor(), getBossBarStyle());
+        BossBar bar = Bukkit.createBossBar(getInternals().getBossBar(),
+            BaseComponent.toLegacyText(LibsMsg.ACTION_BAR_MESSAGE.getBase(getDisguiseName())), getBossBarColor(), getBossBarStyle());
         bar.setProgress(1);
         bar.addPlayer((Player) getEntity());
     }
@@ -518,7 +522,7 @@ public abstract class Disguise {
         }
 
         if (getEntity() instanceof Player && isSelfDisguiseVisible() && !isTallDisguisesVisible() && isTallDisguise()) {
-            if (DisguiseConfig.isTallSelfDisguisesScaling() && NmsVersion.v1_21_R1.isSupported() && canScaleDisguise()) {
+            if (DisguiseConfig.isTallSelfDisguisesScaling() && NmsVersion.v1_20_R4.isSupported() && canScaleDisguise()) {
                 adjustTallSelfDisguiseScale();
             } else {
                 setSelfDisguiseVisible(false);
@@ -533,7 +537,7 @@ public abstract class Disguise {
     }
 
     protected boolean canScaleDisguise() {
-        return !isMiscDisguise() && getType() != DisguiseType.ENDER_DRAGON;
+        return NmsVersion.v1_20_R4.isSupported() && !isMiscDisguise() && getType() != DisguiseType.ENDER_DRAGON;
     }
 
     public void setScalePlayerToDisguise(boolean scalePlayerToDisguise) {
@@ -548,40 +552,63 @@ public abstract class Disguise {
     }
 
     protected void adjustTallSelfDisguiseScale() {
-        if (!NmsVersion.v1_21_R1.isSupported() || !canScaleDisguise()) {
+        if (!canScaleDisguise() || !isDisguiseInUse() || getEntity() == null) {
             return;
         }
 
+        // TODO Extract this into DisguiseUtilities so that junit tests can be setup
+
         // Get the scale, default to "not scaled" if not a player
-        double playerHeightScale = DisguiseUtilities.getActualEntityScale(getEntity());
-        double disguiseHeight = getHeight() * getNameHeightScale();
+        double playerScaleWithoutLibsDisguises = getInternals().getEntityScaleWithoutLibsDisguises();
+        // This is the height of the disguise, along with the name height
+        double naturalHeightOfDisguise = getHeight();
+        double increasedNaturalHeightOfDisguise = getHeight() * getNameHeightScale();
+
+        if (DisguiseUtilities.isTallDisguise(this)) {
+            increasedNaturalHeightOfDisguise *= 1.2;
+        }
 
         // Here we have the scale of the player itself, where they'd be scaled up or down to match the disguise's scale
         // So a disguise that's 0.5 blocks high, will have the player be given something like 0.33 scale
-        double playerScale = disguiseHeight / (1.8 * playerHeightScale);
-        playerScale = Math.min(playerScale, DisguiseConfig.getScaleSelfDisguisesMax());
+        double scalerToMakePlayerSeePerspective = 1;
+
+        if (isScalePlayerToDisguise()) {
+            scalerToMakePlayerSeePerspective = naturalHeightOfDisguise / (1.8 * playerScaleWithoutLibsDisguises);
+
+            // Clamp the scale to the min and max
+            scalerToMakePlayerSeePerspective = Math.min(scalerToMakePlayerSeePerspective, DisguiseConfig.getScaleSelfDisguisesMax());
+            scalerToMakePlayerSeePerspective = Math.max(scalerToMakePlayerSeePerspective, DisguiseConfig.getScaleSelfDisguisesMin());
+        }
 
         // The max size the self disguise is allowed to be, as it'd hide the player's view
-        double prevScale = this.selfDisguiseTallScaleMax;
+        double prevPersonalDisguiseScaleMax = getInternals().getSelfDisguiseTallScaleMax();
         // Adjust so it's not blocking eyes. So smaller than normal
         // And ofc, it's 1 if the disguise was not too tall to begin with
-        this.selfDisguiseTallScaleMax = DisguiseUtilities.isTallDisguise(this) ? (1.4 * playerScale) / disguiseHeight : 1;
+        double newPersonalDisguiseScaleMax = (1.2 * scalerToMakePlayerSeePerspective) / increasedNaturalHeightOfDisguise;
 
+        getInternals().setSelfDisguiseTallScaleMax(newPersonalDisguiseScaleMax);
+
+        adjustSelfDisguiseScale(prevPersonalDisguiseScaleMax, newPersonalDisguiseScaleMax, playerScaleWithoutLibsDisguises,
+            scalerToMakePlayerSeePerspective);
+    }
+
+    private void adjustSelfDisguiseScale(double prevPersonalDisguiseScaleMax, double newPersonalDisguiseScaleMax,
+                                         double playerScaleWithoutLibsDisguises, double personalPlayerScaleAttribute) {
         if (!isDisguiseInUse() || !(getEntity() instanceof Player) || !canScaleDisguise() ||
             !((TargetedDisguise) this).canSee((Player) getEntity())) {
             return;
         }
 
-        if (prevScale != selfDisguiseTallScaleMax && isSelfDisguiseVisible()) {
+        if (prevPersonalDisguiseScaleMax != newPersonalDisguiseScaleMax && isSelfDisguiseVisible()) {
             double scaleToSend;
 
             if (((LivingWatcher) getWatcher()).getScale() != null) {
                 scaleToSend = ((LivingWatcher) getWatcher()).getScale();
             } else {
-                scaleToSend = DisguiseUtilities.getActualEntityScale(getEntity());
+                scaleToSend = playerScaleWithoutLibsDisguises;
             }
 
-            scaleToSend = Math.min(scaleToSend, getSelfDisguiseTallScaleMax());
+            scaleToSend = Math.min(scaleToSend, newPersonalDisguiseScaleMax);
 
             // The scale of the self disguise, not the player
             WrapperPlayServerUpdateAttributes.Property property =
@@ -600,15 +627,18 @@ public abstract class Disguise {
                 .orElse(null);
 
         // Disabled or not allowed or doesn't need to scale up
-        if (!isScalePlayerToDisguise() || (!LibsPremium.isPremium() && !DisguiseConfig.isScaleSelfDisguises()) || playerScale == 1 ||
-            isPlayerDisguise()) {
+        if (!isScalePlayerToDisguise() || !LibsPremium.isPremium() || !DisguiseConfig.isScaleSelfDisguises() ||
+            personalPlayerScaleAttribute == 1 || isPlayerDisguise()) {
             if (modifier != null) {
                 attribute.removeModifier(modifier);
             }
         } else if (isScalePlayerToDisguise() && DisguiseConfig.isScaleSelfDisguises()) {
+            personalPlayerScaleAttribute -= 1;
+
             if (modifier != null) {
                 // Nothing changed, don't change anything
-                if (modifier.getAmount() == playerScale && modifier.getOperation() == AttributeModifier.Operation.MULTIPLY_SCALAR_1) {
+                if (modifier.getAmount() == personalPlayerScaleAttribute &&
+                    modifier.getOperation() == AttributeModifier.Operation.MULTIPLY_SCALAR_1) {
                     return;
                 }
 
@@ -616,7 +646,7 @@ public abstract class Disguise {
             }
 
             // Subtract 1, as 1 is added internally
-            attribute.addModifier(new AttributeModifier(DisguiseUtilities.getSelfDisguiseScaleNamespace(), playerScale - 1,
+            attribute.addModifier(new AttributeModifier(DisguiseUtilities.getSelfDisguiseScaleNamespace(), personalPlayerScaleAttribute,
                 AttributeModifier.Operation.MULTIPLY_SCALAR_1, EquipmentSlotGroup.ANY));
         }
     }
@@ -651,17 +681,6 @@ public abstract class Disguise {
     }
 
     /**
-     * In use doesn't mean that this disguise is active. It means that Lib's Disguises still stores a reference to
-     * the disguise.
-     * getEntity() can still return null if this disguise is active after despawn, logout, etc.
-     *
-     * @return isDisguiseInUse
-     */
-    public boolean isDisguiseInUse() {
-        return disguiseInUse;
-    }
-
-    /**
      * Will a disguised player appear in tab
      */
     public boolean isHidePlayer() {
@@ -686,10 +705,6 @@ public abstract class Disguise {
         return hideHeldItemFromSelf;
     }
 
-    public boolean isHideArmorFromSelf() {
-        return hideArmorFromSelf;
-    }
-
     public Disguise setHideArmorFromSelf(boolean hideArmor) {
         this.hideArmorFromSelf = hideArmor;
 
@@ -698,10 +713,6 @@ public abstract class Disguise {
         }
 
         return this;
-    }
-
-    public boolean isHideHeldItemFromSelf() {
-        return hideHeldItemFromSelf;
     }
 
     public Disguise setHideHeldItemFromSelf(boolean hideHeldItem) {
@@ -714,12 +725,8 @@ public abstract class Disguise {
         return this;
     }
 
-    public boolean isKeepDisguiseOnPlayerDeath() {
-        return this.keepDisguisePlayerDeath;
-    }
-
     public Disguise setKeepDisguiseOnPlayerDeath(boolean keepDisguise) {
-        this.keepDisguisePlayerDeath = keepDisguise;
+        this.keepDisguiseOnPlayerDeath = keepDisguise;
 
         return this;
     }
@@ -730,10 +737,6 @@ public abstract class Disguise {
 
     public boolean isMobDisguise() {
         return false;
-    }
-
-    public boolean isModifyBoundingBox() {
-        return modifyBoundingBox;
     }
 
     public Disguise setModifyBoundingBox(boolean modifyBox) {
@@ -784,10 +787,6 @@ public abstract class Disguise {
 
     public boolean isSoundsReplaced() {
         return replaceSounds;
-    }
-
-    public boolean isVelocitySent() {
-        return velocitySent;
     }
 
     public Disguise setVelocitySent(boolean sendVelocity) {
@@ -851,7 +850,7 @@ public abstract class Disguise {
             return true;
         }
 
-        if (NmsVersion.v1_21_R1.isSupported()) {
+        if (NmsVersion.v1_20_R4.isSupported()) {
             DisguiseUtilities.removeSelfDisguiseScale(getEntity());
         }
 
@@ -906,7 +905,6 @@ public abstract class Disguise {
         }
 
         if (isHidePlayer() && getEntity() instanceof Player && ((Player) getEntity()).isOnline()) {
-
             for (Player player : Bukkit.getOnlinePlayers()) {
                 if (!((TargetedDisguise) this).canSee(player)) {
                     continue;
@@ -933,10 +931,6 @@ public abstract class Disguise {
         DisguiseUtilities.saveDisguises(getEntity());
 
         return true;
-    }
-
-    public boolean isHearSelfDisguise() {
-        return hearSelfDisguise;
     }
 
     public Disguise setHearSelfDisguise(boolean hearSelfDisguise) {
@@ -1007,7 +1001,8 @@ public abstract class Disguise {
     @Deprecated
     public Disguise setViewSelfDisguise(boolean viewSelfDisguise) {
         if (viewSelfDisguise && !isTallDisguisesVisible() && isTallDisguise()) {
-            if (DisguiseConfig.isTallSelfDisguisesScaling() && NmsVersion.v1_21_R1.isSupported() && canScaleDisguise()) {
+            if (DisguiseConfig.isTallSelfDisguisesScaling() && NmsVersion.v1_20_R4.isSupported() && canScaleDisguise() &&
+                !isPlayerDisguise()) {
                 adjustTallSelfDisguiseScale();
             } else {
                 viewSelfDisguise = false;
@@ -1020,13 +1015,11 @@ public abstract class Disguise {
 
         this.viewSelfDisguise = viewSelfDisguise;
 
-        if (getEntity() != null && getEntity() instanceof Player) {
-            if (DisguiseAPI.getDisguise((Player) getEntity(), getEntity()) == this) {
-                if (isSelfDisguiseVisible()) {
-                    DisguiseUtilities.setupFakeDisguise(this);
-                } else {
-                    DisguiseUtilities.removeSelfDisguise(this);
-                }
+        if (getEntity() instanceof Player && DisguiseAPI.getDisguise((Player) getEntity(), getEntity()) == this) {
+            if (isSelfDisguiseVisible()) {
+                DisguiseUtilities.setupFakeDisguise(this);
+            } else {
+                DisguiseUtilities.removeSelfDisguise(this);
             }
         }
 
@@ -1176,13 +1169,5 @@ public abstract class Disguise {
 
     public boolean stopDisguise() {
         return removeDisguise();
-    }
-
-    public boolean isMobsIgnoreDisguise() {
-        return mobsIgnoreDisguise;
-    }
-
-    public void setMobsIgnoreDisguise(boolean mobsIgnoreDisguise) {
-        this.mobsIgnoreDisguise = mobsIgnoreDisguise;
     }
 }

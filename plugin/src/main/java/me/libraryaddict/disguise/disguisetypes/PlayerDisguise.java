@@ -285,7 +285,11 @@ public class PlayerDisguise extends TargetedDisguise {
 
     public void setName(String name) {
         if (getName().equals("<Inherit>") && getEntity() != null) {
-            name = getEntity().getCustomName();
+            if (getEntity() instanceof Player) {
+                name = getEntity().getName();
+            } else {
+                name = getEntity().getCustomName();
+            }
 
             if (name == null || name.isEmpty()) {
                 name = getEntity().getType().name();
@@ -698,7 +702,13 @@ public class PlayerDisguise extends TargetedDisguise {
                 setName(name);
             }
         } else if (getName().equals("<Inherit>") && getEntity() != null) {
-            String name = getEntity().getCustomName();
+            String name;
+
+            if (getEntity() instanceof Player) {
+                name = DisguiseUtilities.translateAlternateColorCodes(DisguiseUtilities.getDisplayName(getEntity()));
+            } else {
+                name = getEntity().getCustomName();
+            }
 
             if (name == null || name.isEmpty()) {
                 name = getEntity().getType().name();

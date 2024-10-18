@@ -405,7 +405,7 @@ public class DisguiseUtilities {
     }
 
     public static void removeSelfDisguiseScale(Entity entity) {
-        if (!NmsVersion.v1_21_R1.isSupported() || isInvalidFile() || !(entity instanceof LivingEntity)) {
+        if (!NmsVersion.v1_20_R4.isSupported() || isInvalidFile() || !(entity instanceof LivingEntity)) {
             return;
         }
 
@@ -1323,7 +1323,19 @@ public class DisguiseUtilities {
                 }
             }
 
-            ReflectionManager.setBoundingBox(entity, disguiseBox);
+            double scale = 1;
+
+            if (NmsVersion.v1_20_R4.isSupported() && disguise.getWatcher() instanceof LivingWatcher) {
+                Double disguiseScale = ((LivingWatcher) disguise.getWatcher()).getScale();
+
+                if (disguiseScale != null) {
+                    scale = disguiseScale;
+                } else {
+                    scale = DisguiseUtilities.getEntityScaleWithoutLibsDisguises(disguise.getEntity());
+                }
+            }
+
+            ReflectionManager.setBoundingBox(entity, disguiseBox, scale);
         } else {
             DisguiseValues entityValues = DisguiseValues.getDisguiseValues(DisguiseType.getType(entity.getType()));
 
@@ -1336,7 +1348,7 @@ public class DisguiseUtilities {
                 }
             }
 
-            ReflectionManager.setBoundingBox(entity, entityBox);
+            ReflectionManager.setBoundingBox(entity, entityBox, DisguiseUtilities.getEntityScaleWithoutLibsDisguises(disguise.getEntity()));
         }
     }
 
@@ -2769,7 +2781,7 @@ public class DisguiseUtilities {
             box = values.getAdultBox();
         }
 
-        return box != null && !(box.getY() <= 1.7D);
+        return box != null && box.getY() >= 1.7D;
     }
 
     public static String getPlayerListName(Player player) {
@@ -3029,7 +3041,7 @@ public class DisguiseUtilities {
         } else if (wrapper instanceof WrapperPlayServerAttachEntity) {
             return ((WrapperPlayServerAttachEntity) wrapper).getAttachedId();
         } else if (wrapper instanceof WrapperPlayServerCollectItem) {
-            return ((WrapperPlayServerCollectItem) wrapper).getCollectedEntityId();
+            return ((WrapperPlayServerCollectItem) wrapper).getCollectorEntityId();
         } else {
             throw new IllegalStateException("The packet " + wrapper.getClass() + " has no entity ID");
         }
@@ -3464,7 +3476,7 @@ public class DisguiseUtilities {
                     else if (index == MetaIndex.TEXT_DISPLAY_TEXT) {
                         val = getAdventureChat(newNames[i]);
                     } else if (index == MetaIndex.DISPLAY_SCALE && !disguise.isMiscDisguise()) {
-                        Double scale = viewer == disguise.getEntity() ? disguise.getSelfDisguiseTallScaleMax() :
+                        Double scale = viewer == disguise.getEntity() ? disguise.getInternals().getSelfDisguiseTallScaleMax() :
                             ((LivingWatcher) disguise.getWatcher()).getScale();
                         // TODO Expand this out
                     } else if (index == MetaIndex.DISPLAY_BILLBOARD_RENDER_CONSTRAINTS) {
@@ -3513,8 +3525,8 @@ public class DisguiseUtilities {
     /**
      * Grabs the scale of the entity as if the LibsDisguises: attributes did not exist
      */
-    public static double getActualEntityScale(Entity entity) {
-        if (!(entity instanceof LivingEntity)) {
+    public static double getEntityScaleWithoutLibsDisguises(Entity entity) {
+        if (!NmsVersion.v1_20_R4.isSupported() || !(entity instanceof LivingEntity)) {
             return 1;
         }
 
