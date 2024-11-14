@@ -13,9 +13,17 @@ ext {
 
 dependencies {
     implementation project(':shared')
+    compileOnly libs.io.netty.netty.buffer
+    compileOnly libs.it.unimi.dsi.fastutil
+    compileOnly libs.com.mojang.datafixerupper
+
     afterEvaluate {
         if (remapServerCode) {
             implementation "org.spigotmc:spigot:${craftbukkitVersion}:remapped-mojang"
+            implementation "org.spigotmc:spigot:${craftbukkitVersion}:remapped-obf"
+
+            implementation "org.spigotmc:minecraft-server:${craftbukkitVersion}:maps-mojang@txt"
+            implementation "org.spigotmc:minecraft-server:${craftbukkitVersion}:maps-spigot@csrg"
         } else {
             implementation "org.spigotmc:spigot:${craftbukkitVersion}"
         }

@@ -107,6 +107,7 @@ import org.bukkit.ChatColor;
 import org.bukkit.Location;
 import org.bukkit.Material;
 import org.bukkit.NamespacedKey;
+import org.bukkit.Registry;
 import org.bukkit.World;
 import org.bukkit.attribute.Attribute;
 import org.bukkit.attribute.AttributeInstance;
@@ -138,6 +139,7 @@ import org.bukkit.scoreboard.Team;
 import org.bukkit.scoreboard.Team.Option;
 import org.bukkit.scoreboard.Team.OptionStatus;
 import org.bukkit.util.Vector;
+import org.jetbrains.annotations.Nullable;
 
 import java.io.BufferedReader;
 import java.io.File;
@@ -282,7 +284,7 @@ public class DisguiseUtilities {
     private static final Cache<Integer, Long> velocityTimes = CacheBuilder.newBuilder().expireAfterWrite(1, TimeUnit.SECONDS).build();
     private static final HashMap<UUID, ArrayList<Integer>> disguiseLoading = new HashMap<>();
     @Getter
-    private static boolean runningPaper;
+    private static boolean runningPaper, runningGeyser;
     private static MineSkinAPI mineSkinAPI;
     @Getter
     private static boolean invalidFile;
@@ -313,6 +315,8 @@ public class DisguiseUtilities {
     @Getter
     private static boolean fancyHiddenTabs;
     @Getter
+    private static NamespacedKey oldSavedDisguisesKey;
+    @Getter
     private static NamespacedKey savedDisguisesKey;
     private static final Map<Enchantment, EnchantmentType> whitelistedEnchantments = new HashMap<Enchantment, EnchantmentType>();
     @Getter
@@ -326,6 +330,8 @@ public class DisguiseUtilities {
         io.github.retrooper.packetevents.adventure.serializer.gson.GsonComponentSerializer.gson();
     @Getter
     private static NamespacedKey selfDisguiseScaleNamespace;
+    @Getter
+    private static Attribute scaleAttribute;
     @Getter
     @Setter
     private static boolean debuggingMode;
@@ -345,6 +351,12 @@ public class DisguiseUtilities {
             profileCache = new File(LibsDisguises.getInstance().getDataFolder(), "SavedSkins");
             sanitySkinCacheFile = new File(LibsDisguises.getInstance().getDataFolder(), "SavedSkins/sanity.json");
             savedDisguises = new File(LibsDisguises.getInstance().getDataFolder(), "SavedDisguises");
+            runningGeyser = Bukkit.getPluginManager().getPlugin("Geyser-Spigot") != null;
+
+            if (NmsVersion.v1_20_R4.isSupported()) {
+                scaleAttribute =
+                    Registry.ATTRIBUTE.get(NamespacedKey.minecraft(NmsVersion.v1_21_R2.isSupported() ? "scale" : "generic.scale"));
+            }
         }
 
         entityItem = EntityType.fromName("item");
@@ -409,7 +421,7 @@ public class DisguiseUtilities {
             return;
         }
 
-        AttributeInstance attribute = ((LivingEntity) entity).getAttribute(Attribute.GENERIC_SCALE);
+        AttributeInstance attribute = ((LivingEntity) entity).getAttribute(getScaleAttribute());
         attribute.getModifiers().stream().filter(a -> a.getKey().equals(DisguiseUtilities.getSelfDisguiseScaleNamespace()))
             .forEach(attribute::removeModifier);
     }
@@ -504,6 +516,65 @@ public class DisguiseUtilities {
         }
 
         return getHexedColors(name);
+    }
+
+    public static void adjustNamePositions(Disguise disguise, LibsPackets<? extends PacketWrapper> packets) {
+        List<PacketWrapper> newPackets = adjustNamePositions(disguise, packets.getPackets());
+
+        if (newPackets == null) {
+            return;
+        }
+
+        packets.getPackets().addAll(newPackets);
+    }
+
+    public static @Nullable List<PacketWrapper> adjustNamePositions(Disguise disguise, List<PacketWrapper> packets) {
+        int len = disguise.getMultiNameLength();
+
+        if (len == 0) {
+            return null;
+        }
+
+        ArrayList<PacketWrapper> toAdd = new ArrayList<>();
+        double height = (disguise.getHeight() + disguise.getWatcher().getNameYModifier());
+        double heightScale = disguise.getNameHeightScale();
+        height *= heightScale;
+        height += (DisguiseUtilities.getNameSpacing() * (heightScale - 1)) * 0.35;
+
+        for (PacketWrapper packet : packets) {
+            if (packet instanceof WrapperPlayServerEntityRotation) {
+                continue;
+            }
+
+            for (int i = 0; i < len; i++) {
+                int standId = disguise.getArmorstandIds()[i];
+                PacketWrapper cloned;
+
+                if (packet instanceof WrapperPlayServerEntityTeleport) {
+                    // TODO Handle if this is a vehicle movement
+                    WrapperPlayServerEntityTeleport tele = (WrapperPlayServerEntityTeleport) packet;
+
+                    cloned = new WrapperPlayServerEntityTeleport(standId,
+                        tele.getPosition().add(0, height + (DisguiseUtilities.getNameSpacing() * i), 0), tele.getYaw(), tele.getPitch(),
+                        tele.isOnGround());
+                } else if (packet instanceof WrapperPlayServerEntityRelativeMoveAndRotation) {
+                    WrapperPlayServerEntityRelativeMoveAndRotation rot = (WrapperPlayServerEntityRelativeMoveAndRotation) packet;
+                    cloned = new WrapperPlayServerEntityRelativeMoveAndRotation(standId, rot.getDeltaX(), rot.getDeltaY(), rot.getDeltaZ(),
+                        rot.getYaw(), rot.getPitch(), rot.isOnGround());
+                } else if (packet instanceof WrapperPlayServerEntityRelativeMove) {
+                    WrapperPlayServerEntityRelativeMove rot = (WrapperPlayServerEntityRelativeMove) packet;
+                    cloned = new WrapperPlayServerEntityRelativeMove(standId, rot.getDeltaX(), rot.getDeltaY(), rot.getDeltaZ(),
+                        rot.isOnGround());
+                } else {
+                    // It seems that EntityStatus packet was being added at some point, probably in some other transformation
+                    continue; //   throw new IllegalStateException("Unknown packet " + packet.getClass());
+                }
+
+                toAdd.add(cloned);
+            }
+        }
+
+        return toAdd;
     }
 
     private static String toMiniMessage(Component component) {
@@ -3293,6 +3364,26 @@ public class DisguiseUtilities {
             case MINECART_MOB_SPAWNER:
             case MINECART_TNT:
                 return value + 90;
+            case ACACIA_BOAT:
+            case ACACIA_CHEST_BOAT:
+            case BAMBOO_RAFT:
+            case BAMBOO_CHEST_RAFT:
+            case BIRCH_BOAT:
+            case BIRCH_CHEST_BOAT:
+            case CHERRY_BOAT:
+            case CHERRY_CHEST_BOAT:
+            case DARK_OAK_BOAT:
+            case DARK_OAK_CHEST_BOAT:
+            case JUNGLE_BOAT:
+            case JUNGLE_CHEST_BOAT:
+            case MANGROVE_BOAT:
+            case MANGROVE_CHEST_BOAT:
+            case OAK_BOAT:
+            case OAK_CHEST_BOAT:
+            case PALE_OAK_BOAT:
+            case PALE_OAK_CHEST_BOAT:
+            case SPRUCE_BOAT:
+            case SPRUCE_CHEST_BOAT:
             case BOAT:
             case ENDER_DRAGON:
             case WITHER_SKULL:
@@ -3530,7 +3621,7 @@ public class DisguiseUtilities {
             return 1;
         }
 
-        AttributeInstance attribute = ((LivingEntity) entity).getAttribute(Attribute.GENERIC_SCALE);
+        AttributeInstance attribute = ((LivingEntity) entity).getAttribute(getScaleAttribute());
 
         double scale = attribute.getBaseValue();
         double modifiedScale = 0;
@@ -3659,6 +3750,26 @@ public class DisguiseUtilities {
             case SPLASH_POTION:
             case THROWN_EXP_BOTTLE:
             case WITHER_SKULL:
+            case ACACIA_BOAT:
+            case ACACIA_CHEST_BOAT:
+            case BAMBOO_RAFT:
+            case BAMBOO_CHEST_RAFT:
+            case BIRCH_BOAT:
+            case BIRCH_CHEST_BOAT:
+            case CHERRY_BOAT:
+            case CHERRY_CHEST_BOAT:
+            case DARK_OAK_BOAT:
+            case DARK_OAK_CHEST_BOAT:
+            case JUNGLE_BOAT:
+            case JUNGLE_CHEST_BOAT:
+            case MANGROVE_BOAT:
+            case MANGROVE_CHEST_BOAT:
+            case OAK_BOAT:
+            case OAK_CHEST_BOAT:
+            case PALE_OAK_BOAT:
+            case PALE_OAK_CHEST_BOAT:
+            case SPRUCE_BOAT:
+            case SPRUCE_CHEST_BOAT:
                 return yMod + 0.7;
             case DROPPED_ITEM:
                 return yMod + 0.13;
